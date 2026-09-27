@@ -117,6 +117,14 @@ export function TechnicalFooter({ onOpenQRArtifact }: TechnicalFooterProps) {
                     <span>[LIVE]</span> <span>BARCODE PICK & STUDIO</span>
                   </Link>
                 </li>
+                <li>
+                  <Link
+                    href="/fitness-glass"
+                    className="hover:text-[#ccff00] transition-colors text-left flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>[LIVE]</span> <span>FITNESS GLASS (TIMETABLE)</span>
+                  </Link>
+                </li>
                 {onOpenQRArtifact && (
                   <li>
                     <button

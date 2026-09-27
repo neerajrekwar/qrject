@@ -21,6 +21,7 @@ import {
   AlertCircle,
   Printer,
   Barcode as BarcodeIcon,
+  Activity,
 } from 'lucide-react';
 import {
   QROptions,
@@ -826,6 +827,13 @@ export function HeroSection({
                 >
                   <BarcodeIcon className="w-3.5 h-3.5" />
                   <span>Barcode Pick →</span>
+                </Link>
+                <Link
+                  href="/fitness-glass"
+                  className="font-black text-black hover:text-emerald-800 underline flex items-center gap-1 cursor-pointer"
+                >
+                  <Activity className="w-3.5 h-3.5" />
+                  <span>Fitness Glass →</span>
                 </Link>
               </div>
             </div>
