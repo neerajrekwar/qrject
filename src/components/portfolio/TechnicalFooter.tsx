@@ -109,6 +109,14 @@ export function TechnicalFooter({ onOpenQRArtifact }: TechnicalFooterProps) {
                     <span>[LIVE]</span> <span>PHOTO DPI MAKER (B/W)</span>
                   </Link>
                 </li>
+                <li>
+                  <Link
+                    href="/barcode-pick"
+                    className="hover:text-[#ccff00] transition-colors text-left flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>[LIVE]</span> <span>BARCODE PICK & STUDIO</span>
+                  </Link>
+                </li>
                 {onOpenQRArtifact && (
                   <li>
                     <button

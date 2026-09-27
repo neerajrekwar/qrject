@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { Menu, X, ArrowUpRight, Terminal, Printer } from 'lucide-react';
+import { Menu, X, ArrowUpRight, Terminal, Printer, Barcode as BarcodeIcon } from 'lucide-react';
 
 interface NavbarProps {
   onOpenContact: () => void;
@@ -59,6 +59,13 @@ export function Navbar({ onOpenContact, onOpenQRArtifact }: NavbarProps) {
           >
             <Printer className="w-3.5 h-3.5" />
             <span>PHOTO DPI</span>
+          </Link>
+          <Link
+            href="/barcode-pick"
+            className="px-3 py-2 font-mono text-xs font-black tracking-wider text-black hover:bg-black hover:text-[#ccff00] transition-colors flex items-center gap-1 border-l-2 border-black"
+          >
+            <BarcodeIcon className="w-3.5 h-3.5" />
+            <span>BARCODES</span>
           </Link>
           {onOpenQRArtifact && (
             <button
@@ -126,6 +133,13 @@ export function Navbar({ onOpenContact, onOpenQRArtifact }: NavbarProps) {
               className="block p-3 border-2 border-black bg-white font-mono text-xs font-black tracking-widest text-black shadow-[3px_3px_0px_#000000] hover:bg-[#ccff00]"
             >
               PHOTO DPI MAKER (300 DPI B/W) →
+            </Link>
+            <Link
+              href="/barcode-pick"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block p-3 border-2 border-black bg-white font-mono text-xs font-black tracking-widest text-black shadow-[3px_3px_0px_#000000] hover:bg-[#ccff00]"
+            >
+              BARCODE PICK & STUDIO →
             </Link>
             {onOpenQRArtifact && (
               <button

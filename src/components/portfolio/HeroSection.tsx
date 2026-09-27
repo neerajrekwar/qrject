@@ -20,6 +20,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Printer,
+  Barcode as BarcodeIcon,
 } from 'lucide-react';
 import {
   QROptions,
@@ -818,6 +819,13 @@ export function HeroSection({
                 >
                   <Printer className="w-3.5 h-3.5" />
                   <span>Photo DPI Maker →</span>
+                </Link>
+                <Link
+                  href="/barcode-pick"
+                  className="font-black text-black hover:text-emerald-800 underline flex items-center gap-1 cursor-pointer"
+                >
+                  <BarcodeIcon className="w-3.5 h-3.5" />
+                  <span>Barcode Pick →</span>
                 </Link>
               </div>
             </div>
