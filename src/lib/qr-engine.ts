@@ -25,6 +25,7 @@ export interface QROptions {
   logoPadding?: number; // padding in px
   logoBackground?: string;
   logoShape?: 'circle' | 'square' | 'rounded';
+  photoBWMode?: boolean; // When true, converts embedded photo/logo to high-contrast B/W
   // High contrast & DPI
   dpi?: 72 | 300 | 600;
   targetSizePx?: number;
@@ -272,7 +273,12 @@ export async function renderQRToCanvas(
         drawX = innerX + (innerSize - drawW) / 2;
       }
 
+      if (options.photoBWMode) {
+        ctx.filter = 'grayscale(100%) contrast(150%) brightness(95%)';
+      }
+
       ctx.drawImage(logoImg, drawX, drawY, drawW, drawH);
+      ctx.filter = 'none';
       ctx.restore();
     } catch (err) {
       console.warn('Could not render logo to QR canvas:', err);
@@ -530,17 +536,26 @@ function crc32(buf: Uint8Array): number {
 }
 
 /**
- * Generates an SVG string of the QR Code
+ * Generates an SVG string of the QR Code with 300 DPI vector calibration,
+ * optional embedded photo/logo, B/W filtering, and module/eye geometry.
  */
 export function generateQRSVG(options: QROptions): string {
   const {
     text,
-    errorCorrectionLevel = 'M',
+    errorCorrectionLevel = options.logoUrl ? 'H' : 'M',
     foregroundColor = '#000000',
     backgroundColor = '#ffffff',
     eyeOuterColor = foregroundColor,
     eyeInnerColor = foregroundColor,
     dotShape = 'square',
+    eyeFrameShape = 'square',
+    eyeBallShape = 'square',
+    logoUrl = null,
+    logoSize = 0.22,
+    logoPadding = 8,
+    logoBackground = '#ffffff',
+    logoShape = 'square',
+    photoBWMode = false,
   } = options;
 
   const qr = QRCode.create(text || 'https://qrject.dev', { errorCorrectionLevel });
@@ -551,11 +566,29 @@ export function generateQRSVG(options: QROptions): string {
   const totalSize = total * cellSize;
   const offset = quietModules * cellSize;
 
+  // Calculate logo modules to mask center cells
+  let logoRadiusModules = 0;
+  if (logoUrl) {
+    const logoPx = totalSize * Math.min(Math.max(logoSize, 0.15), 0.32);
+    const logoModules = Math.ceil(logoPx / cellSize);
+    logoRadiusModules = Math.floor(logoModules / 2) + 1;
+  }
+
+  let defsElements = '';
+  if (photoBWMode) {
+    defsElements += `
+    <filter id="svg-qr-bw">
+      <feColorMatrix type="matrix" values="0.33 0.33 0.33 0 0 0.33 0.33 0.33 0 0 0.33 0.33 0.33 0 0 0 0 0 1 0"/>
+    </filter>`;
+  }
+
   let svgElements = '';
 
+  // Draw data & alignment modules
   for (let r = 0; r < moduleCount; r++) {
     for (let c = 0; c < moduleCount; c++) {
       if (isFinderPattern(r, c, moduleCount)) continue;
+      if (logoUrl && isLogoZone(r, c, moduleCount, logoRadiusModules)) continue;
       if (!qr.modules.get(r, c)) continue;
 
       const x = offset + c * cellSize;
@@ -570,6 +603,8 @@ export function generateQRSVG(options: QROptions): string {
         const cx = x + cellSize / 2;
         const cy = y + cellSize / 2;
         svgElements += `<polygon points="${cx},${y} ${x + cellSize},${cy} ${cx},${y + cellSize} ${x},${cy}" fill="${foregroundColor}" />`;
+      } else if (dotShape === 'classy') {
+        svgElements += `<rect x="${x + 0.5}" y="${y + 0.5}" width="${cellSize - 1}" height="${cellSize - 1}" rx="${cellSize * 0.4}" fill="${foregroundColor}" />`;
       } else {
         svgElements += `<rect x="${x}" y="${y}" width="${cellSize}" height="${cellSize}" fill="${foregroundColor}" />`;
       }
@@ -588,16 +623,90 @@ export function generateQRSVG(options: QROptions): string {
     const eyeY = offset + pos.row * cellSize;
     const eyeSize = 7 * cellSize;
 
-    // Outer 7x7 box
-    svgElements += `<rect x="${eyeX}" y="${eyeY}" width="${eyeSize}" height="${eyeSize}" fill="${eyeOuterColor || foregroundColor}" rx="${cellSize * 0.8}" />`;
-    // Hollow 5x5
-    svgElements += `<rect x="${eyeX + cellSize}" y="${eyeY + cellSize}" width="${5 * cellSize}" height="${5 * cellSize}" fill="${backgroundColor}" rx="${cellSize * 0.5}" />`;
-    // Inner 3x3
-    svgElements += `<rect x="${eyeX + 2 * cellSize}" y="${eyeY + 2 * cellSize}" width="${3 * cellSize}" height="${3 * cellSize}" fill="${eyeInnerColor || foregroundColor}" rx="${cellSize * 0.4}" />`;
+    // Outer frame rx
+    const frameRx =
+      eyeFrameShape === 'circle'
+        ? eyeSize / 2
+        : eyeFrameShape === 'squircle'
+        ? cellSize * 2.5
+        : eyeFrameShape === 'rounded'
+        ? cellSize * 1.6
+        : 0;
+
+    // Hollow 5x5 rx
+    const hollowSize = 5 * cellSize;
+    const hollowRx =
+      eyeFrameShape === 'circle'
+        ? hollowSize / 2
+        : eyeFrameShape === 'squircle'
+        ? cellSize * 1.8
+        : eyeFrameShape === 'rounded'
+        ? cellSize * 1.0
+        : 0;
+
+    // Inner 3x3 ball
+    const ballSize = 3 * cellSize;
+    const ballX = eyeX + 2 * cellSize;
+    const ballY = eyeY + 2 * cellSize;
+
+    // Outer frame
+    svgElements += `<rect x="${eyeX}" y="${eyeY}" width="${eyeSize}" height="${eyeSize}" rx="${frameRx}" fill="${eyeOuterColor || foregroundColor}" />`;
+    // Hollow inner
+    svgElements += `<rect x="${eyeX + cellSize}" y="${eyeY + cellSize}" width="${hollowSize}" height="${hollowSize}" rx="${hollowRx}" fill="${backgroundColor}" />`;
+
+    // Eyeball
+    if (eyeBallShape === 'circle') {
+      svgElements += `<circle cx="${ballX + ballSize / 2}" cy="${ballY + ballSize / 2}" r="${ballSize / 2}" fill="${eyeInnerColor || foregroundColor}" />`;
+    } else if (eyeBallShape === 'diamond') {
+      const cx = ballX + ballSize / 2;
+      const cy = ballY + ballSize / 2;
+      svgElements += `<polygon points="${cx},${ballY} ${ballX + ballSize},${cy} ${cx},${ballY + ballSize} ${ballX},${cy}" fill="${eyeInnerColor || foregroundColor}" />`;
+    } else if (eyeBallShape === 'rounded') {
+      svgElements += `<rect x="${ballX}" y="${ballY}" width="${ballSize}" height="${ballSize}" rx="${cellSize * 0.8}" fill="${eyeInnerColor || foregroundColor}" />`;
+    } else {
+      svgElements += `<rect x="${ballX}" y="${ballY}" width="${ballSize}" height="${ballSize}" fill="${eyeInnerColor || foregroundColor}" />`;
+    }
+  }
+
+  // Draw Logo / Photo if present
+  let logoElements = '';
+  if (logoUrl) {
+    const logoBoxSize = totalSize * Math.min(Math.max(logoSize, 0.15), 0.32);
+    const logoX = (totalSize - logoBoxSize) / 2;
+    const logoY = (totalSize - logoBoxSize) / 2;
+    const boxRadius = logoShape === 'circle' ? logoBoxSize / 2 : logoShape === 'rounded' ? logoBoxSize * 0.2 : 0;
+
+    const pad = Math.max(logoPadding, 4);
+    const innerSize = logoBoxSize - pad * 2;
+    const innerX = logoX + pad;
+    const innerY = logoY + pad;
+    const innerRadius = logoShape === 'circle' ? innerSize / 2 : logoShape === 'rounded' ? innerSize * 0.15 : 0;
+
+    // Clip path for photo
+    defsElements += `
+    <clipPath id="svg-qr-photo-clip">
+      ${
+        logoShape === 'circle'
+          ? `<circle cx="${innerX + innerSize / 2}" cy="${innerY + innerSize / 2}" r="${innerSize / 2}" />`
+          : `<rect x="${innerX}" y="${innerY}" width="${innerSize}" height="${innerSize}" rx="${innerRadius}" />`
+      }
+    </clipPath>`;
+
+    // Background badge cutout
+    if (logoShape === 'circle') {
+      logoElements += `<circle cx="${logoX + logoBoxSize / 2}" cy="${logoY + logoBoxSize / 2}" r="${logoBoxSize / 2}" fill="${logoBackground}" stroke="#000000" stroke-width="1" />`;
+    } else {
+      logoElements += `<rect x="${logoX}" y="${logoY}" width="${logoBoxSize}" height="${logoBoxSize}" rx="${boxRadius}" fill="${logoBackground}" stroke="#000000" stroke-width="1" />`;
+    }
+
+    // Photo/Logo Image
+    logoElements += `<image href="${logoUrl}" x="${innerX}" y="${innerY}" width="${innerSize}" height="${innerSize}" preserveAspectRatio="xMidYMid meet" clip-path="url(#svg-qr-photo-clip)" ${photoBWMode ? 'filter="url(#svg-qr-bw)"' : ''} />`;
   }
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalSize} ${totalSize}" width="${totalSize}" height="${totalSize}">
+  ${defsElements ? `<defs>${defsElements}</defs>` : ''}
   <rect width="${totalSize}" height="${totalSize}" fill="${backgroundColor}"/>
   ${svgElements}
+  ${logoElements}
 </svg>`;
 }

@@ -19,7 +19,7 @@ body {
   overflow-x: hidden;
 }
 
-/* Neo-Brutalist Selection */
+/* Neo-Brutalist High-Contrast Selection */
 ::selection {
   background-color: #ccff00;
   color: #000000;

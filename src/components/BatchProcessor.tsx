@@ -12,6 +12,8 @@ import {
   Eye,
   ShieldCheck,
   FileArchive,
+  Sparkles,
+  X,
 } from 'lucide-react';
 import {
   QROptions,
@@ -57,16 +59,17 @@ export function BatchProcessor({ baseOptions }: BatchProcessorProps) {
 
   // Load sample dataset
   const handleLoadSample = (count: number = 10) => {
-    let dataset: BatchItem[] = [];
+    const dataset: BatchItem[] = [];
     if (count <= 10) {
-      dataset = SAMPLE_DEV_BADGES.slice(0, count).map((d, i) => ({
-        id: `badge-${i + 1}`,
-        title: d.title,
-        payload: d.payload,
-        status: 'pending',
-      }));
+      SAMPLE_DEV_BADGES.slice(0, count).forEach((d, i) => {
+        dataset.push({
+          id: `badge-${i + 1}`,
+          title: d.title,
+          payload: d.payload,
+          status: 'pending',
+        });
+      });
     } else {
-      // Generate up to 100 entries for batch stress testing
       for (let i = 1; i <= count; i++) {
         const seedName = SAMPLE_DEV_BADGES[(i - 1) % SAMPLE_DEV_BADGES.length].title;
         dataset.push({
@@ -80,123 +83,134 @@ export function BatchProcessor({ baseOptions }: BatchProcessorProps) {
     setItems(dataset);
   };
 
-  // Parse raw pasted lines
+  // Parse multi-line pasted text
   const handleParseRawText = () => {
-    const lines = rawText
-      .split('\n')
-      .map((l) => l.trim())
-      .filter((l) => l.length > 0);
-
+    if (!rawText.trim()) return;
+    const lines = rawText.split('\n').filter((l) => l.trim().length > 0);
     const parsed: BatchItem[] = lines.map((line, idx) => {
-      // Check if comma-separated: Title, Payload
-      if (line.includes(',')) {
-        const parts = line.split(',');
+      const parts = line.split(',');
+      if (parts.length > 1) {
         return {
-          id: `item-${idx + 1}`,
+          id: `custom-${idx + 1}-${Date.now()}`,
           title: parts[0].trim(),
           payload: parts.slice(1).join(',').trim(),
           status: 'pending',
         };
       }
       return {
-        id: `item-${idx + 1}`,
+        id: `custom-${idx + 1}-${Date.now()}`,
         title: `Item #${idx + 1}`,
-        payload: line,
+        payload: line.trim(),
         status: 'pending',
       };
     });
-
-    setItems(parsed);
+    setItems((prev) => [...prev, ...parsed]);
+    setRawText('');
   };
 
-  // CSV file upload handler
+  // Parse CSV file upload
   const handleFileUpload = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      const text = event.target?.result as string;
-      if (!text) return;
-      const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+      const content = event.target?.result as string;
+      if (!content) return;
+
+      const lines = content.split(/\r?\n/).filter((l) => l.trim().length > 0);
       const parsed: BatchItem[] = [];
 
-      // Check header row
-      const startIndex = lines[0].toLowerCase().includes('name') || lines[0].toLowerCase().includes('title') ? 1 : 0;
-
-      for (let i = startIndex; i < lines.length; i++) {
-        const line = lines[i];
-        const parts = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/); // CSV split respecting quotes
-        if (parts.length >= 2) {
+      lines.forEach((line, idx) => {
+        if (idx === 0 && line.toLowerCase().includes('name') && line.toLowerCase().includes('url')) {
+          return;
+        }
+        const cols = line.split(',').map((c) => c.trim().replace(/^["']|["']$/g, ''));
+        if (cols.length >= 2) {
           parsed.push({
-            id: `csv-${i}`,
-            title: parts[0].replace(/^"|"$/g, '').trim(),
-            payload: parts[1].replace(/^"|"$/g, '').trim(),
+            id: `csv-${idx + 1}-${Date.now()}`,
+            title: cols[0],
+            payload: cols[1],
             status: 'pending',
           });
-        } else {
+        } else if (cols.length === 1 && cols[0]) {
           parsed.push({
-            id: `csv-${i}`,
-            title: `Row ${i}`,
-            payload: line.trim(),
+            id: `csv-${idx + 1}-${Date.now()}`,
+            title: `Row #${idx + 1}`,
+            payload: cols[0],
             status: 'pending',
           });
         }
-      }
-      setItems(parsed);
+      });
+
+      setItems((prev) => [...prev, ...parsed]);
     };
     reader.readAsText(file);
   };
 
-  // Run Batch Generation
+  // Clear all items
+  const handleClearAll = () => {
+    setItems([]);
+    setProgress(0);
+  };
+
+  // Run bulk generator in chunks
   const handleGenerateBatch = async () => {
-    if (items.length === 0) return;
+    if (items.length === 0 || isProcessing) return;
+
     setIsProcessing(true);
     setProgress(0);
 
-    const canvas = document.createElement('canvas');
     const updated = [...items];
-    const total = updated.length;
+    const targetPx = targetDpi === 300 ? 1000 : 400;
 
-    // Determine color scheme: pure black and white if forceBW is true
-    const batchOptions: QROptions = {
+    const qrConfig: QROptions = {
       ...baseOptions,
-      foregroundColor: forceBW ? '#000000' : baseOptions.foregroundColor,
-      backgroundColor: forceBW ? '#ffffff' : baseOptions.backgroundColor,
-      gradientEnabled: forceBW ? false : baseOptions.gradientEnabled,
-      eyeOuterColor: forceBW ? '#000000' : baseOptions.eyeOuterColor,
-      eyeInnerColor: forceBW ? '#000000' : baseOptions.eyeInnerColor,
-      targetSizePx: targetDpi === 300 ? 1200 : 600,
+      targetSizePx: targetPx,
+      ...(forceBW
+        ? {
+            foregroundColor: '#000000',
+            backgroundColor: '#ffffff',
+            gradientEnabled: false,
+            eyeOuterColor: '#000000',
+            eyeInnerColor: '#000000',
+          }
+        : {}),
     };
 
-    for (let i = 0; i < total; i++) {
-      try {
-        await renderQRToCanvas(canvas, {
-          ...batchOptions,
-          text: updated[i].payload,
-        });
+    const chunkSize = 5;
+    for (let i = 0; i < updated.length; i += chunkSize) {
+      const chunk = updated.slice(i, i + chunkSize);
 
-        updated[i].dataUrl = canvas.toDataURL('image/png');
-        updated[i].status = 'rendered';
-      } catch (err) {
-        console.error('Failed to render QR for item', updated[i], err);
-        updated[i].status = 'error';
-      }
+      await Promise.all(
+        chunk.map(async (item, chunkIndex) => {
+          const index = i + chunkIndex;
+          try {
+            const canvas = document.createElement('canvas');
+            await renderQRToCanvas(canvas, {
+              ...qrConfig,
+              text: item.payload,
+            });
+            updated[index].dataUrl = canvas.toDataURL('image/png');
+            updated[index].status = 'rendered';
+          } catch (err) {
+            console.error('Error rendering QR batch item:', err);
+            updated[index].status = 'error';
+          }
+        })
+      );
 
-      setProgress(Math.round(((i + 1) / total) * 100));
+      const percent = Math.round(((i + chunk.length) / updated.length) * 100);
+      setProgress(percent);
+      setItems([...updated]);
 
-      // Yield thread briefly every 5 items to keep browser responsive
-      if (i % 5 === 0) {
-        await new Promise((r) => setTimeout(r, 0));
-        setItems([...updated]);
-      }
+      await new Promise((resolve) => setTimeout(resolve, 15));
     }
 
-    setItems([...updated]);
     setIsProcessing(false);
   };
 
-  // Download All as ZIP archive
+  // Export all rendered codes as a ZIP file with 300 DPI metadata
   const handleDownloadZip = async () => {
     const renderedItems = items.filter((item) => item.status === 'rendered');
     if (renderedItems.length === 0) return;
@@ -209,7 +223,6 @@ export function BatchProcessor({ baseOptions }: BatchProcessorProps) {
       const item = renderedItems[i];
       if (!item.dataUrl) continue;
 
-      // Extract base64 data
       const base64Data = item.dataUrl.replace(/^data:image\/png;base64,/, '');
       const binary = atob(base64Data);
       const array = new Uint8Array(binary.length);
@@ -217,7 +230,6 @@ export function BatchProcessor({ baseOptions }: BatchProcessorProps) {
         array[j] = binary.charCodeAt(j);
       }
 
-      // Embed 300 DPI chunk
       const originalBlob = new Blob([array], { type: 'image/png' });
       const dpiBlob = await insertDpiIntoPngBlob(originalBlob, targetDpi);
       const dpiArray = await dpiBlob.arrayBuffer();
@@ -236,7 +248,6 @@ export function BatchProcessor({ baseOptions }: BatchProcessorProps) {
     setIsProcessing(false);
   };
 
-  // Filter items by search query
   const filteredItems = items.filter(
     (item) =>
       item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -247,19 +258,26 @@ export function BatchProcessor({ baseOptions }: BatchProcessorProps) {
 
   return (
     <div className="w-full max-w-6xl space-y-6">
-      {/* Top Banner / Configuration Panel */}
-      <div className="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 shadow-2xl backdrop-blur-xl">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-800 pb-5">
+      {/* Top Banner / Configuration Panel in Futuristic Dark Mode */}
+      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl shadow-2xl backdrop-blur-xl overflow-hidden">
+        
+        {/* Header Strip */}
+        <div className="border-b border-slate-800/80 bg-slate-950/70 px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20">
-              <Layers className="w-6 h-6" />
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white shadow-lg shadow-cyan-500/20">
+              <Layers className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white">
-                Batch QR Code Generator
-              </h2>
-              <p className="text-xs text-slate-400">
-                Generate dozens or hundreds of high-contrast 300 DPI codes simultaneously with instant ZIP export
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-white tracking-wide">
+                  BATCH QR PROCESSING ENGINE
+                </h2>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
+                  MASS COMPILER
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Generate dozens or hundreds of high-contrast 300 DPI codes simultaneously with ZIP export
               </p>
             </div>
           </div>
@@ -267,67 +285,78 @@ export function BatchProcessor({ baseOptions }: BatchProcessorProps) {
           <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={() => handleLoadSample(10)}
-              className="px-3 py-1.5 text-xs font-medium text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition-colors"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 transition-colors cursor-pointer"
             >
-              Load 10 Badges
+              + 10 Badges
             </button>
             <button
               onClick={() => handleLoadSample(50)}
-              className="px-3 py-1.5 text-xs font-medium text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition-colors"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 transition-colors cursor-pointer"
             >
-              Load 50 Badges
+              + 50 Badges
             </button>
             <button
               onClick={() => handleLoadSample(100)}
-              className="px-3 py-1.5 text-xs font-medium text-purple-300 bg-purple-500/10 hover:bg-purple-500/20 rounded-lg border border-purple-500/30 transition-colors"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold text-cyan-300 bg-cyan-950/40 hover:bg-cyan-900/40 border border-cyan-700/50 transition-colors cursor-pointer"
             >
-              Load 100 Badges
+              + 100 Stress Test
             </button>
+            {items.length > 0 && (
+              <button
+                onClick={handleClearAll}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-400 hover:bg-rose-950/40 border border-rose-800/40 transition-colors cursor-pointer"
+              >
+                Clear
+              </button>
+            )}
           </div>
         </div>
 
         {/* Input Methods Grid */}
-        <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Method A: Paste Text / Lines */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-semibold text-slate-300">
-                Option 1: Paste Text or URLs (one per line)
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-200 uppercase tracking-wider">
+                Option 1: Paste Multi-Line Data or URLs
               </span>
-              <span className="text-[11px] text-slate-500">Format: Title, Content</span>
+              <span className="text-[11px] text-slate-400 font-mono">Format: Title, Payload</span>
             </div>
             <textarea
               value={rawText}
               onChange={(e) => setRawText(e.target.value)}
               rows={4}
-              placeholder={`Alexandria Vance, https://qrject.dev/pass/101\nSarah Connor, https://qrject.dev/pass/102\nDev VIP, https://qrject.dev/pass/103`}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-cyan-500 font-mono"
+              placeholder={`Alexandria Vance, https://summit.ai/badge/101\nSarah Connor, https://summit.ai/badge/102\nMarcus Vance, https://summit.ai/badge/103`}
+              className="w-full bg-slate-950/90 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:border-cyan-500 transition-colors"
             />
             <button
               onClick={handleParseRawText}
               disabled={!rawText.trim()}
-              className="w-full py-1.5 px-3 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 text-xs font-medium rounded-lg transition-colors"
+              className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold text-white bg-slate-800 hover:bg-slate-700 disabled:opacity-40 border border-slate-700 transition-colors cursor-pointer flex items-center justify-center gap-2"
             >
-              Parse Pasted Lines ({rawText.split('\n').filter((l) => l.trim()).length} rows)
+              <span>Parse Pasted Lines ({rawText.split('\n').filter((l) => l.trim()).length} Rows)</span>
             </button>
           </div>
 
           {/* Method B: Upload CSV */}
-          <div className="space-y-2 flex flex-col justify-between">
-            <span className="text-xs font-semibold text-slate-300">
-              Option 2: Upload CSV / Excel Spreadsheet
-            </span>
-            <div className="p-4 border border-dashed border-slate-700 rounded-xl bg-slate-950/60 text-center flex-1 flex flex-col items-center justify-center">
-              <FileSpreadsheet className="w-8 h-8 text-emerald-400 mb-2" />
-              <div className="text-xs font-medium text-slate-200">
-                Drag & drop or browse CSV file
+          <div className="space-y-2.5 flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-200 uppercase tracking-wider">
+                Option 2: Import CSV Spreadsheet
+              </span>
+              <span className="text-[11px] text-slate-400 font-mono">Col 1: Title · Col 2: Content</span>
+            </div>
+            <div className="border border-dashed border-slate-700/80 bg-slate-950/50 rounded-xl p-5 text-center flex-1 flex flex-col items-center justify-center space-y-2">
+              <FileSpreadsheet className="w-8 h-8 text-cyan-400 mb-1" />
+              <div className="text-xs font-semibold text-slate-300">
+                Drag & drop or select a CSV / TXT file
               </div>
-              <div className="text-[10px] text-slate-500 mb-3">
-                First column: Title/Name · Second column: URL or Token
+              <div className="text-[11px] text-slate-500">
+                Instant auto-mapping for attendee lists & token databases
               </div>
-              <label className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-white bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 cursor-pointer transition-colors">
+              <label className="mt-2 inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-md shadow-blue-500/20 cursor-pointer transition-all">
                 <Upload className="w-3.5 h-3.5" />
-                <span>Upload CSV</span>
+                <span>Upload CSV File</span>
                 <input
                   type="file"
                   accept=".csv,text/csv,text/plain"
@@ -340,47 +369,51 @@ export function BatchProcessor({ baseOptions }: BatchProcessorProps) {
         </div>
 
         {/* Batch Options & Strict Scanner Compatibility Toggle */}
-        <div className="mt-5 pt-4 border-t border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
+        <div className="border-t border-slate-800/80 bg-slate-950/60 p-6 grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
           {/* High Contrast Shield Toggle */}
-          <label className="flex items-center gap-2.5 cursor-pointer p-2.5 rounded-xl bg-slate-950/70 border border-slate-800">
+          <label className="flex items-center gap-3 cursor-pointer p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-slate-700 transition-colors">
             <input
               type="checkbox"
               checked={forceBW}
               onChange={(e) => setForceBW(e.target.checked)}
-              className="w-4 h-4 accent-cyan-500 rounded cursor-pointer"
+              className="w-4 h-4 rounded accent-cyan-500 cursor-pointer"
             />
             <div>
               <div className="text-xs font-bold text-white flex items-center gap-1.5">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Strict Scanner B&W Mode</span>
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                <span>Strict Scanner B&W</span>
               </div>
-              <div className="text-[10px] text-slate-400">
-                100% optical camera readability (21:1 contrast)
+              <div className="text-[11px] text-slate-400">
+                Guarantees 21:1 contrast for high-speed laser scanners
               </div>
             </div>
           </label>
 
           {/* Target DPI Selector */}
-          <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800 flex items-center justify-between">
-            <span className="text-xs text-slate-300 font-medium">Export Print Resolution:</span>
-            <div className="flex gap-1">
+          <div className="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-between">
+            <span className="text-xs text-slate-300 font-semibold uppercase">Resolution:</span>
+            <div className="flex gap-1.5">
               <button
                 type="button"
                 onClick={() => setTargetDpi(72)}
-                className={`px-2 py-1 rounded text-xs font-mono font-medium ${
-                  targetDpi === 72 ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-slate-400'
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  targetDpi === 72
+                    ? 'bg-slate-800 text-white border border-slate-700'
+                    : 'text-slate-400 hover:text-white'
                 }`}
               >
-                72 DPI
+                72 DPI Web
               </button>
               <button
                 type="button"
                 onClick={() => setTargetDpi(300)}
-                className={`px-2 py-1 rounded text-xs font-mono font-medium ${
-                  targetDpi === 300 ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' : 'text-slate-400'
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  targetDpi === 300
+                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm shadow-cyan-500/20'
+                    : 'text-slate-400 hover:text-white'
                 }`}
               >
-                300 DPI
+                300 DPI Print
               </button>
             </div>
           </div>
@@ -390,7 +423,7 @@ export function BatchProcessor({ baseOptions }: BatchProcessorProps) {
             <button
               onClick={handleGenerateBatch}
               disabled={items.length === 0 || isProcessing}
-              className="flex-1 py-2 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-90 disabled:opacity-50 text-white font-semibold text-xs rounded-xl shadow-lg transition-all flex items-center justify-center gap-2"
+              className="flex-1 py-3 px-4 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-pink-600 hover:opacity-90 disabled:opacity-40 shadow-lg shadow-blue-500/20 transition-all cursor-pointer flex items-center justify-center gap-2"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isProcessing ? 'animate-spin' : ''}`} />
               <span>
@@ -404,9 +437,9 @@ export function BatchProcessor({ baseOptions }: BatchProcessorProps) {
               <button
                 onClick={handleDownloadZip}
                 disabled={isProcessing}
-                className="py-2 px-3.5 bg-gradient-to-r from-pink-600 to-rose-600 hover:opacity-90 disabled:opacity-50 text-white font-semibold text-xs rounded-xl shadow-lg shadow-pink-500/20 transition-all flex items-center gap-1.5"
+                className="py-3 px-4 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 shadow-lg shadow-emerald-500/20 transition-all cursor-pointer flex items-center gap-1.5"
               >
-                <FileArchive className="w-3.5 h-3.5" />
+                <FileArchive className="w-4 h-4" />
                 <span>ZIP ({renderedCount})</span>
               </button>
             )}
@@ -415,14 +448,17 @@ export function BatchProcessor({ baseOptions }: BatchProcessorProps) {
 
         {/* Progress Bar */}
         {isProcessing && (
-          <div className="mt-4 space-y-1">
-            <div className="flex justify-between text-xs font-mono text-cyan-400">
-              <span>Rendering batch QR matrix...</span>
-              <span>{progress}%</span>
+          <div className="border-t border-slate-800 bg-slate-950 p-4 space-y-2">
+            <div className="flex justify-between text-xs text-slate-300 font-mono">
+              <span className="flex items-center gap-2">
+                <Sparkles className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+                Compiling batch QR pipeline into 300 DPI format...
+              </span>
+              <span className="font-bold text-cyan-400">{progress}%</span>
             </div>
-            <div className="w-full h-2 rounded-full bg-slate-950 overflow-hidden border border-slate-800">
+            <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-cyan-400 via-indigo-500 to-pink-500 transition-all duration-150"
+                className="h-full bg-gradient-to-r from-cyan-500 via-blue-500 to-pink-500 transition-all duration-150 rounded-full"
                 style={{ width: `${progress}%` }}
               />
             </div>
@@ -432,8 +468,8 @@ export function BatchProcessor({ baseOptions }: BatchProcessorProps) {
 
       {/* Batch Results Grid & Search Filter */}
       {items.length > 0 && (
-        <div className="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 shadow-2xl backdrop-blur-xl">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mb-5 border-b border-slate-800 pb-4">
+        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl shadow-2xl backdrop-blur-xl p-6">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mb-6 border-b border-slate-800 pb-4">
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold text-white">
                 Queue Matrix ({items.length} Total · {renderedCount} Rendered)
@@ -442,12 +478,12 @@ export function BatchProcessor({ baseOptions }: BatchProcessorProps) {
 
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <div className="relative w-full sm:w-64">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search by title or payload..."
+                  placeholder="Filter by title or payload..."
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-cyan-500"
                 />
               </div>
@@ -455,7 +491,7 @@ export function BatchProcessor({ baseOptions }: BatchProcessorProps) {
               {renderedCount > 0 && (
                 <button
                   onClick={handleDownloadZip}
-                  className="px-3 py-1.5 text-xs font-semibold text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg flex items-center gap-1.5 shrink-0"
+                  className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-md shadow-blue-500/20 transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>Download ZIP</span>
@@ -465,26 +501,26 @@ export function BatchProcessor({ baseOptions }: BatchProcessorProps) {
           </div>
 
           {/* Cards Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5 max-h-[600px] overflow-y-auto pr-1">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 max-h-[600px] overflow-y-auto pr-1">
             {filteredItems.map((item, idx) => (
               <div
                 key={item.id}
-                className="p-3 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 transition-all flex flex-col justify-between group"
+                className="bg-slate-950/70 border border-slate-800/80 hover:border-cyan-500/40 rounded-xl p-3.5 transition-all flex flex-col justify-between group"
               >
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[10px] font-mono text-slate-500">#{idx + 1}</span>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] text-slate-500 font-mono font-medium">#{idx + 1}</span>
                     {item.status === 'rendered' ? (
                       <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400" />
                     ) : item.status === 'error' ? (
-                      <span className="w-2 h-2 rounded-full bg-rose-500" />
+                      <span className="w-2 h-2 rounded-full bg-rose-400" />
                     ) : (
                       <span className="w-2 h-2 rounded-full bg-slate-600" />
                     )}
                   </div>
 
                   {/* QR Image Box */}
-                  <div className="aspect-square w-full rounded-lg bg-white p-1.5 flex items-center justify-center overflow-hidden shadow-inner">
+                  <div className="aspect-square w-full rounded-lg bg-white p-2 flex items-center justify-center overflow-hidden shadow-inner">
                     {item.dataUrl ? (
                       /* eslint-disable-next-line @next/next/no-img-element */
                       <img
@@ -494,18 +530,18 @@ export function BatchProcessor({ baseOptions }: BatchProcessorProps) {
                         onClick={() => setSelectedPreview(item)}
                       />
                     ) : (
-                      <span className="text-[10px] font-mono text-slate-400 text-center">
-                        Waiting render...
+                      <span className="text-[11px] text-slate-400 font-mono text-center">
+                        Pending...
                       </span>
                     )}
                   </div>
 
-                  <div className="mt-2">
-                    <div className="text-xs font-bold text-white truncate" title={item.title}>
+                  <div className="mt-2.5">
+                    <div className="text-xs font-semibold text-slate-200 truncate" title={item.title}>
                       {item.title}
                     </div>
                     <div
-                      className="text-[10px] font-mono text-slate-400 truncate mt-0.5"
+                      className="text-[10px] text-slate-500 truncate mt-0.5 font-mono"
                       title={item.payload}
                     >
                       {item.payload}
@@ -514,10 +550,10 @@ export function BatchProcessor({ baseOptions }: BatchProcessorProps) {
                 </div>
 
                 {item.dataUrl && (
-                  <div className="mt-2.5 pt-2 border-t border-slate-900 flex items-center justify-between">
+                  <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-[11px]">
                     <button
                       onClick={() => setSelectedPreview(item)}
-                      className="text-[10px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
+                      className="text-slate-400 hover:text-cyan-400 transition-colors flex items-center gap-1 cursor-pointer"
                     >
                       <Eye className="w-3 h-3" />
                       <span>Inspect</span>
@@ -525,7 +561,7 @@ export function BatchProcessor({ baseOptions }: BatchProcessorProps) {
                     <a
                       href={item.dataUrl}
                       download={`QR-${item.title}.png`}
-                      className="text-[10px] text-slate-400 hover:text-white flex items-center gap-1"
+                      className="text-slate-400 hover:text-cyan-400 transition-colors flex items-center gap-1 cursor-pointer"
                     >
                       <Download className="w-3 h-3" />
                       <span>Save</span>
@@ -541,26 +577,26 @@ export function BatchProcessor({ baseOptions }: BatchProcessorProps) {
       {/* Inspect Modal */}
       {selectedPreview && (
         <div
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
           onClick={() => setSelectedPreview(null)}
         >
           <div
             className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-              <span className="text-xs font-mono uppercase text-cyan-400 font-bold">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <span className="text-xs font-bold text-white uppercase tracking-wider">
                 Batch Code Inspector
               </span>
               <button
                 onClick={() => setSelectedPreview(null)}
-                className="text-slate-400 hover:text-white text-xs"
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
               >
-                ✕ Close
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="bg-white p-4 rounded-xl shadow-lg flex items-center justify-center">
+            <div className="rounded-xl bg-white p-4 shadow-inner flex items-center justify-center">
               {selectedPreview.dataUrl && (
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img
@@ -573,19 +609,20 @@ export function BatchProcessor({ baseOptions }: BatchProcessorProps) {
 
             <div>
               <div className="text-sm font-bold text-white">{selectedPreview.title}</div>
-              <div className="text-xs font-mono text-slate-400 break-all mt-1 bg-slate-950 p-2 rounded-lg border border-slate-800">
+              <div className="text-xs text-slate-300 break-all mt-1 bg-slate-950 rounded-lg p-3 border border-slate-800 font-mono">
                 {selectedPreview.payload}
               </div>
             </div>
 
-            <div className="flex gap-2">
+            <div>
               {selectedPreview.dataUrl && (
                 <a
                   href={selectedPreview.dataUrl}
                   download={`QR-${selectedPreview.title}-300DPI.png`}
-                  className="flex-1 py-2 text-center text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg shadow transition-colors"
+                  className="w-full py-2.5 text-center font-semibold text-xs text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-pink-600 hover:opacity-90 rounded-xl shadow-lg shadow-pink-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  Download High-Res PNG
+                  <Download className="w-4 h-4" />
+                  <span>Download 300 DPI PNG</span>
                 </a>
               )}
             </div>

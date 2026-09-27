@@ -12,6 +12,7 @@ import {
   UploadCloud,
   Trash2,
   FileCode,
+  FileText,
   Scan,
 } from 'lucide-react';
 import {
@@ -25,18 +26,20 @@ import {
   calculateContrastRatio,
   insertDpiIntoPngBlob,
 } from '@/lib/qr-engine';
+import { generate300DpiPDF, triggerDownload } from '@/lib/qr-export';
 import { PRESET_LOGOS } from '@/lib/preset-logos';
 
 interface QRStudioProps {
   options: QROptions;
   onOptionsChange: (newOptions: QROptions) => void;
+  onCodeExported?: (codeInfo: { title?: string; options: QROptions; format: string }) => void;
 }
 
 const DOT_SHAPES: { id: DotShape; label: string; desc: string }[] = [
   { id: 'square', label: 'Classic Square', desc: 'Standard crisp geometric modules' },
   { id: 'dots', label: 'Circular Dots', desc: 'Modern soft rounded dots' },
   { id: 'rounded', label: 'Smooth Rounded', desc: 'Subtle corner radii' },
-  { id: 'diamond', label: 'Diamond', desc: 'Rotated angular modules' },
+  { id: 'diamond', label: 'Diamond Angle', desc: 'Rotated 45° angular modules' },
   { id: 'classy', label: 'Classy Leaf', desc: 'Diagonal corner curvature' },
 ];
 
@@ -55,7 +58,7 @@ const EYE_BALLS: { id: EyeBallShape; label: string }[] = [
 ];
 
 const COLOR_PRESETS = [
-  { name: 'Ultra Contrast B&W', fg: '#000000', bg: '#ffffff', grad: false },
+  { name: 'Pure B&W (21:1)', fg: '#000000', bg: '#ffffff', grad: false },
   { name: 'Cyber Blue', fg: '#0284c7', bg: '#ffffff', grad: true, gradEnd: '#4f46e5' },
   { name: 'Hot Magenta', fg: '#db2777', bg: '#ffffff', grad: true, gradEnd: '#9333ea' },
   { name: 'Dark Mode Invert', fg: '#38bdf8', bg: '#030712', grad: false },
@@ -63,7 +66,7 @@ const COLOR_PRESETS = [
   { name: 'Neon Purple', fg: '#9333ea', bg: '#030712', grad: false },
 ];
 
-export function QRStudio({ options, onOptionsChange }: QRStudioProps) {
+export function QRStudio({ options, onOptionsChange, onCodeExported }: QRStudioProps) {
   const [activeTab, setActiveTab] = useState<'content' | 'shapes' | 'colors' | 'logo' | 'print'>('content');
   const [copied, setCopied] = useState<string | null>(null);
   const [customLogoName, setCustomLogoName] = useState<string | null>(null);
@@ -81,7 +84,7 @@ export function QRStudio({ options, onOptionsChange }: QRStudioProps) {
     if (!canvasRef.current) return;
     renderQRToCanvas(canvasRef.current, {
       ...options,
-      targetSizePx: 600,
+      targetSizePx: 640,
     });
   }, [options]);
 
@@ -112,7 +115,7 @@ export function QRStudio({ options, onOptionsChange }: QRStudioProps) {
       const dataUrl = event.target?.result as string;
       handleUpdate({
         logoUrl: dataUrl,
-        errorCorrectionLevel: 'H', // Force High error correction when logo is uploaded
+        errorCorrectionLevel: 'H', // Force Level H error correction when logo is present
       });
     };
     reader.readAsDataURL(file);
@@ -143,10 +146,17 @@ export function QRStudio({ options, onOptionsChange }: QRStudioProps) {
         const url = URL.createObjectURL(dpiBlob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `QRCode-${dpi}DPI-${Date.now()}.png`;
+        a.download = `QRCode-Precision-${dpi}DPI-${Date.now()}.png`;
         a.click();
         URL.revokeObjectURL(url);
         setIsExporting(false);
+
+        if (onCodeExported) {
+          onCodeExported({
+            options: { ...options, dpi },
+            format: `${dpi} DPI PNG`,
+          });
+        }
       }, 'image/png');
     } catch (err) {
       console.error(err);
@@ -160,9 +170,16 @@ export function QRStudio({ options, onOptionsChange }: QRStudioProps) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `QRCode-Vector-${Date.now()}.svg`;
+    a.download = `QRCode-Vector-Paths-${Date.now()}.svg`;
     a.click();
     URL.revokeObjectURL(url);
+
+    if (onCodeExported) {
+      onCodeExported({
+        options: { ...options },
+        format: 'Vector SVG',
+      });
+    }
   };
 
   const handleCopySVG = () => {
@@ -170,6 +187,24 @@ export function QRStudio({ options, onOptionsChange }: QRStudioProps) {
     navigator.clipboard.writeText(svgString);
     setCopied('svg');
     setTimeout(() => setCopied(null), 2000);
+  };
+
+  const handleDownloadPDF = async () => {
+    setIsExporting(true);
+    try {
+      const result = await generate300DpiPDF(options);
+      triggerDownload(result);
+      if (onCodeExported) {
+        onCodeExported({
+          options: { ...options },
+          format: '300 DPI PDF',
+        });
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -191,7 +226,7 @@ export function QRStudio({ options, onOptionsChange }: QRStudioProps) {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                   isActive
                     ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/20'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
@@ -228,7 +263,7 @@ export function QRStudio({ options, onOptionsChange }: QRStudioProps) {
                   : 'bg-slate-950/60 border-slate-800 text-slate-300'
               }`}
             >
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-2.5">
                   {isContrastWarning ? (
                     <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
@@ -257,9 +292,9 @@ export function QRStudio({ options, onOptionsChange }: QRStudioProps) {
 
                 <button
                   onClick={handleApplyBW}
-                  className="px-3 py-1.5 text-xs font-semibold text-slate-900 bg-white hover:bg-slate-100 rounded-lg shadow transition-colors whitespace-nowrap"
+                  className="px-3 py-1.5 text-xs font-semibold text-slate-900 bg-white hover:bg-slate-100 rounded-lg shadow transition-colors whitespace-nowrap cursor-pointer"
                 >
-                  Force Pure B&W
+                  Force Pure B&W (21:1)
                 </button>
               </div>
             </div>
@@ -269,7 +304,7 @@ export function QRStudio({ options, onOptionsChange }: QRStudioProps) {
               <label className="block text-xs font-medium text-slate-300 mb-2">
                 Reed-Solomon Error Correction Level
               </label>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {[
                   { level: 'L', name: 'Low (7%)', desc: 'Simplest matrix' },
                   { level: 'M', name: 'Medium (15%)', desc: 'Standard usage' },
@@ -280,7 +315,7 @@ export function QRStudio({ options, onOptionsChange }: QRStudioProps) {
                     key={item.level}
                     type="button"
                     onClick={() => handleUpdate({ errorCorrectionLevel: item.level as ErrorCorrection })}
-                    className={`p-2.5 rounded-xl border text-left transition-all ${
+                    className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
                       options.errorCorrectionLevel === item.level
                         ? 'bg-blue-600/20 border-blue-500 text-white shadow-sm'
                         : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
@@ -308,7 +343,7 @@ export function QRStudio({ options, onOptionsChange }: QRStudioProps) {
                   <button
                     key={shape.id}
                     onClick={() => handleUpdate({ dotShape: shape.id })}
-                    className={`p-3 rounded-xl border text-left transition-all ${
+                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
                       options.dotShape === shape.id
                         ? 'bg-blue-600/20 border-cyan-500 text-white shadow-md'
                         : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
@@ -326,12 +361,12 @@ export function QRStudio({ options, onOptionsChange }: QRStudioProps) {
               <label className="block text-xs font-medium text-slate-300 mb-2">
                 Finder Pattern (Eye) Outer Frame Shape
               </label>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {EYE_FRAMES.map((frame) => (
                   <button
                     key={frame.id}
                     onClick={() => handleUpdate({ eyeFrameShape: frame.id })}
-                    className={`py-2 px-3 rounded-lg border text-xs font-medium transition-all ${
+                    className={`py-2 px-3 rounded-lg border text-xs font-medium transition-all cursor-pointer ${
                       options.eyeFrameShape === frame.id
                         ? 'bg-indigo-600/20 border-indigo-400 text-white shadow-sm'
                         : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
@@ -348,12 +383,12 @@ export function QRStudio({ options, onOptionsChange }: QRStudioProps) {
               <label className="block text-xs font-medium text-slate-300 mb-2">
                 Finder Pattern (Eye) Inner Pupil Shape
               </label>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {EYE_BALLS.map((ball) => (
                   <button
                     key={ball.id}
                     onClick={() => handleUpdate({ eyeBallShape: ball.id })}
-                    className={`py-2 px-3 rounded-lg border text-xs font-medium transition-all ${
+                    className={`py-2 px-3 rounded-lg border text-xs font-medium transition-all cursor-pointer ${
                       options.eyeBallShape === ball.id
                         ? 'bg-pink-600/20 border-pink-400 text-white shadow-sm'
                         : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
@@ -389,7 +424,7 @@ export function QRStudio({ options, onOptionsChange }: QRStudioProps) {
                         eyeInnerColor: p.fg,
                       })
                     }
-                    className="p-2.5 rounded-xl border border-slate-800 bg-slate-950 hover:border-slate-700 text-left transition-all flex items-center gap-2.5"
+                    className="p-2.5 rounded-xl border border-slate-800 bg-slate-950 hover:border-slate-700 text-left transition-all flex items-center gap-2.5 cursor-pointer"
                   >
                     <div
                       className="w-5 h-5 rounded-full border border-slate-700 shrink-0 shadow"
@@ -543,7 +578,7 @@ export function QRStudio({ options, onOptionsChange }: QRStudioProps) {
                         errorCorrectionLevel: 'H',
                       })
                     }
-                    className={`p-3 rounded-xl border flex items-center gap-3 transition-all ${
+                    className={`p-3 rounded-xl border flex items-center gap-3 transition-all cursor-pointer ${
                       options.logoUrl === logo.dataUrl
                         ? 'bg-blue-600/20 border-cyan-500 shadow-md'
                         : 'bg-slate-950 border-slate-800 hover:border-slate-700'
@@ -587,14 +622,14 @@ export function QRStudio({ options, onOptionsChange }: QRStudioProps) {
               )}
             </div>
 
-            {/* Logo Controls (Sliders) */}
+            {/* Logo Controls */}
             {options.logoUrl && (
               <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                   <span className="text-xs font-bold text-white">Logo Fine-Tuning</span>
                   <button
                     onClick={handleRemoveLogo}
-                    className="flex items-center gap-1 text-[11px] text-rose-400 hover:text-rose-300 transition-colors"
+                    className="flex items-center gap-1 text-[11px] text-rose-400 hover:text-rose-300 transition-colors cursor-pointer"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     <span>Remove Logo</span>
@@ -613,7 +648,7 @@ export function QRStudio({ options, onOptionsChange }: QRStudioProps) {
                     step="0.01"
                     value={options.logoSize || 0.22}
                     onChange={(e) => handleUpdate({ logoSize: parseFloat(e.target.value) })}
-                    className="w-full accent-cyan-500"
+                    className="w-full accent-cyan-500 cursor-pointer"
                   />
                 </div>
 
@@ -629,7 +664,7 @@ export function QRStudio({ options, onOptionsChange }: QRStudioProps) {
                     step="1"
                     value={options.logoPadding || 8}
                     onChange={(e) => handleUpdate({ logoPadding: parseInt(e.target.value) })}
-                    className="w-full accent-cyan-500"
+                    className="w-full accent-cyan-500 cursor-pointer"
                   />
                 </div>
 
@@ -640,7 +675,7 @@ export function QRStudio({ options, onOptionsChange }: QRStudioProps) {
                       <button
                         key={s}
                         onClick={() => handleUpdate({ logoShape: s })}
-                        className={`py-1.5 px-3 rounded-lg border text-xs capitalize ${
+                        className={`py-1.5 px-3 rounded-lg border text-xs capitalize cursor-pointer ${
                           options.logoShape === s
                             ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200'
                             : 'bg-slate-900 border-slate-800 text-slate-400'
@@ -650,6 +685,21 @@ export function QRStudio({ options, onOptionsChange }: QRStudioProps) {
                       </button>
                     ))}
                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1.5">Photo & Logo Color Calibration</label>
+                  <button
+                    onClick={() => handleUpdate({ photoBWMode: !options.photoBWMode })}
+                    className={`w-full py-2 px-3 rounded-lg border text-xs font-mono font-bold flex items-center justify-center gap-2 cursor-pointer transition-colors ${
+                      options.photoBWMode
+                        ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300'
+                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>{options.photoBWMode ? 'PHOTO B/W MODE (HIGH-CONTRAST 21:1)' : 'ORIGINAL PHOTO COLOR'}</span>
+                  </button>
                 </div>
               </div>
             )}
@@ -667,7 +717,7 @@ export function QRStudio({ options, onOptionsChange }: QRStudioProps) {
                 </span>
               </div>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Standard screens display at 72 DPI, causing pixelation when printed on paper, badges, or signage. Our generator embeds physical resolution chunks (pHYs) and renders at 2400px–4800px so your print vendor or office printer produces razor-sharp optical edges.
+                Standard screens display at 72 DPI, causing pixelation when printed on paper, badges, or signage. Our generator embeds physical resolution chunks (`pHYs` @ 11,811 ppm) and renders at 2400px–4800px so commercial RIP processors, InDesign, and office printers produce razor-sharp optical edges.
               </p>
             </div>
 
@@ -676,10 +726,9 @@ export function QRStudio({ options, onOptionsChange }: QRStudioProps) {
                 <div className="font-mono text-slate-500 uppercase text-[10px]">Screen Preview</div>
                 <div className="text-lg font-bold text-white mt-1">72 DPI</div>
                 <div className="text-[11px] text-slate-400">800 × 800 px</div>
-                <div className="text-[10px] text-slate-500 mt-1">Web & Digital Media</div>
                 <button
                   onClick={() => handleDownloadPNG(72)}
-                  className="mt-3 w-full py-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded-lg transition-colors"
+                  className="mt-3 w-full py-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded-lg transition-colors cursor-pointer"
                 >
                   Export 72 DPI
                 </button>
@@ -692,11 +741,10 @@ export function QRStudio({ options, onOptionsChange }: QRStudioProps) {
                 <div className="font-mono text-cyan-400 uppercase text-[10px]">Print HD</div>
                 <div className="text-lg font-bold text-white mt-1">300 DPI</div>
                 <div className="text-[11px] text-slate-300">2,400 × 2,400 px</div>
-                <div className="text-[10px] text-slate-400 mt-1">8.00″ × 8.00″ (20.3 cm)</div>
                 <button
                   onClick={() => handleDownloadPNG(300)}
                   disabled={isExporting}
-                  className="mt-3 w-full py-1.5 px-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-90 text-white font-semibold rounded-lg shadow transition-all"
+                  className="mt-3 w-full py-1.5 px-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-90 text-white font-semibold rounded-lg shadow transition-all cursor-pointer disabled:opacity-50"
                 >
                   {isExporting ? 'Embedding pHYs...' : 'Export 300 DPI PNG'}
                 </button>
@@ -706,10 +754,9 @@ export function QRStudio({ options, onOptionsChange }: QRStudioProps) {
                 <div className="font-mono text-purple-400 uppercase text-[10px]">Ultra Poster</div>
                 <div className="text-lg font-bold text-white mt-1">600 DPI</div>
                 <div className="text-[11px] text-slate-400">4,800 × 4,800 px</div>
-                <div className="text-[10px] text-slate-500 mt-1">Billboard & Exhibition</div>
                 <button
                   onClick={() => handleDownloadPNG(600)}
-                  className="mt-3 w-full py-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded-lg transition-colors"
+                  className="mt-3 w-full py-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded-lg transition-colors cursor-pointer"
                 >
                   Export 600 DPI
                 </button>
@@ -724,23 +771,43 @@ export function QRStudio({ options, onOptionsChange }: QRStudioProps) {
                   <span>Scalable Vector Graphics (SVG)</span>
                 </div>
                 <div className="text-[11px] text-slate-400 mt-0.5">
-                  Mathematical paths with infinite resolution. Ideal for Adobe Illustrator, Figma, & vinyl cutters.
+                  Mathematical paths with infinite resolution. Ideal for Adobe Illustrator & Figma.
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleCopySVG}
-                  className="px-3 py-1.5 text-xs font-medium text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition-colors"
+                  className="px-3 py-1.5 text-xs font-medium text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition-colors cursor-pointer"
                 >
                   {copied === 'svg' ? 'Copied' : 'Copy SVG'}
                 </button>
                 <button
                   onClick={handleDownloadSVG}
-                  className="px-3 py-1.5 text-xs font-semibold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-lg transition-colors"
+                  className="px-3 py-1.5 text-xs font-semibold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-lg transition-colors cursor-pointer"
                 >
                   Download SVG
                 </button>
               </div>
+            </div>
+
+            {/* Commercial Print PDF Export */}
+            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+              <div>
+                <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <FileText className="w-4 h-4 text-cyan-400" />
+                  <span>Commercial Print PDF (300 DPI)</span>
+                </div>
+                <div className="text-[11px] text-slate-400 mt-0.5">
+                  Press-ready specimen card (120×150mm) with hairline trim marks, swatches, and ISO/IEC calibration.
+                </div>
+              </div>
+              <button
+                onClick={handleDownloadPDF}
+                disabled={isExporting}
+                className="px-3 py-1.5 text-xs font-semibold text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded-lg transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+              >
+                Download PDF
+              </button>
             </div>
           </div>
         )}
@@ -788,18 +855,28 @@ export function QRStudio({ options, onOptionsChange }: QRStudioProps) {
             <button
               onClick={() => handleDownloadPNG(300)}
               disabled={isExporting}
-              className="w-full py-2.5 px-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-pink-600 hover:opacity-90 text-white font-semibold text-xs rounded-xl shadow-lg shadow-pink-500/20 transition-all flex items-center justify-center gap-2 active:scale-98 disabled:opacity-50"
+              className="w-full py-2.5 px-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-pink-600 hover:opacity-90 text-white font-semibold text-xs rounded-xl shadow-lg shadow-pink-500/20 transition-all flex items-center justify-center gap-2 active:scale-98 disabled:opacity-50 cursor-pointer"
             >
               <Download className="w-4 h-4" />
               <span>{isExporting ? 'Generating High-Res Blob...' : 'Download 300 DPI PNG'}</span>
             </button>
-            <button
-              onClick={handleDownloadSVG}
-              className="w-full py-2 px-4 bg-slate-950 hover:bg-slate-800 text-slate-300 hover:text-white font-medium text-xs rounded-xl border border-slate-800 transition-colors flex items-center justify-center gap-2"
-            >
-              <FileCode className="w-4 h-4 text-emerald-400" />
-              <span>Download Vector SVG</span>
-            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={handleDownloadSVG}
+                className="w-full py-2 px-3 bg-slate-950 hover:bg-slate-800 text-slate-300 hover:text-white font-medium text-xs rounded-xl border border-slate-800 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <FileCode className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Vector SVG</span>
+              </button>
+              <button
+                onClick={handleDownloadPDF}
+                disabled={isExporting}
+                className="w-full py-2 px-3 bg-slate-950 hover:bg-slate-800 text-slate-300 hover:text-white font-medium text-xs rounded-xl border border-slate-800 transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                <FileText className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Print PDF (300 DPI)</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>

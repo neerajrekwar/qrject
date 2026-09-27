@@ -75,4 +75,43 @@ export const PRESET_LOGOS: PresetLogo[] = [
       </svg>`
     )}`,
   },
+  {
+    id: 'bw-portrait',
+    name: 'B/W Portrait Photo',
+    category: 'Photo B/W',
+    dataUrl: `data:image/svg+xml;utf8,${encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="#000000">
+        <rect width="100" height="100" fill="#ffffff" stroke="#000000" stroke-width="6"/>
+        <circle cx="50" cy="38" r="18" fill="#000000"/>
+        <path d="M22 84 C22 64 36 58 50 58 C64 58 78 64 78 84 Z" fill="#000000"/>
+        <circle cx="50" cy="38" r="14" fill="#ffffff"/>
+        <circle cx="50" cy="36" r="11" fill="#000000"/>
+      </svg>`
+    )}`,
+  },
+  {
+    id: 'bw-industrial-seal',
+    name: 'B/W Industrial Seal',
+    category: 'Photo B/W',
+    dataUrl: `data:image/svg+xml;utf8,${encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+        <rect width="92" height="92" x="4" y="4" fill="#ffffff" stroke="#000000" stroke-width="8"/>
+        <rect width="64" height="64" x="18" y="18" fill="#000000"/>
+        <polygon points="50,26 74,50 50,74 26,50" fill="#ffffff"/>
+        <circle cx="50" cy="50" r="10" fill="#000000"/>
+      </svg>`
+    )}`,
+  },
+  {
+    id: 'bw-qr-monogram',
+    name: 'B/W NR Monogram',
+    category: 'Photo B/W',
+    dataUrl: `data:image/svg+xml;utf8,${encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+        <rect width="100" height="100" fill="#000000"/>
+        <rect width="84" height="84" x="8" y="8" fill="#ffffff"/>
+        <text x="50" y="65" font-family="monospace, sans-serif" font-weight="900" font-size="44" fill="#000000" text-anchor="middle" letter-spacing="-2">NR</text>
+      </svg>`
+    )}`,
+  },
 ];

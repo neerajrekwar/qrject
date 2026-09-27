@@ -13,11 +13,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "QRject",
-  description: "Next.js application imported from qrject",
+  title: "QRject — genQRstudio 300 DPI Photo QR Code Generator",
+  description: "genQRstudio — Industrial 300 DPI Photo QR Code Generator with B/W print calibration, multi-format export, and event pass matrix engineering.",
   openGraph: {
-    title: "QRject",
-    description: "Next.js application imported from qrject",
+    title: "QRject — genQRstudio 300 DPI Photo QR Code Generator",
+    description: "genQRstudio — Industrial 300 DPI Photo QR Code Generator with B/W print calibration, multi-format export, and event pass matrix engineering.",
   },
 };
 
