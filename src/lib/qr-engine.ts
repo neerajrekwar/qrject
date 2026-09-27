@@ -1,9 +1,12 @@
 import QRCode from 'qrcode';
+import jsQR from 'jsqr';
 
 export type DotShape = 'square' | 'dots' | 'rounded' | 'diamond' | 'classy';
 export type EyeFrameShape = 'square' | 'rounded' | 'circle' | 'squircle';
 export type EyeBallShape = 'square' | 'rounded' | 'circle' | 'diamond';
 export type ErrorCorrection = 'L' | 'M' | 'Q' | 'H';
+
+export type PhotoQRMode = 'halftone' | 'fusion' | 'dither' | 'microdots' | 'center-logo';
 
 export interface QROptions {
   text: string;
@@ -19,13 +22,22 @@ export interface QROptions {
   dotShape: DotShape;
   eyeFrameShape: EyeFrameShape;
   eyeBallShape: EyeBallShape;
-  // Logo
+  // Whole Image Photo QR Settings
+  photoUrl?: string | null;           // Whole photo/image URL or base64 data URL
+  photoQRMode?: PhotoQRMode;          // 'halftone' | 'fusion' | 'dither' | 'microdots' | 'center-logo'
+  photoContrast?: number;             // 0.5 to 2.5 (default 1.4 for crisp 300 DPI B/W)
+  photoBrightness?: number;           // 0.5 to 1.8 (default 1.0)
+  photoDotScale?: number;             // 0.35 to 0.85 (module center dot size, default 0.62)
+  photoOpacity?: number;              // 0.3 to 1.0 (default 0.95)
+  photoInvert?: boolean;              // Invert photo luminance
+  photoCoverArea?: 'matrix' | 'full'; // 'matrix' (covers data matrix) or 'full' (entire canvas)
+  photoBWMode?: boolean;              // Force pure monochrome B/W rendering (300 DPI standard)
+  // Legacy / Center Logo (used if photoQRMode === 'center-logo')
   logoUrl?: string | null;
   logoSize?: number; // 0.15 to 0.35 of total QR size
   logoPadding?: number; // padding in px
   logoBackground?: string;
   logoShape?: 'circle' | 'square' | 'rounded';
-  photoBWMode?: boolean; // When true, converts embedded photo/logo to high-contrast B/W
   // High contrast & DPI
   dpi?: 72 | 300 | 600;
   targetSizePx?: number;
@@ -67,7 +79,7 @@ export function calculateContrastRatio(hex1: string, hex2: string): number {
   }
 }
 
-// Helper to determine if a coordinate is in the finder eye zones
+// Helper to determine if a coordinate is in the finder eye zones (7x7 modules)
 export function isFinderPattern(row: number, col: number, moduleCount: number): boolean {
   // Top-left finder (7x7)
   if (row < 7 && col < 7) return true;
@@ -78,7 +90,15 @@ export function isFinderPattern(row: number, col: number, moduleCount: number): 
   return false;
 }
 
-// Helper to check if coordinate is in center logo zone
+// Helper to check if coordinate is in the 1-module quiet boundary around finders (8x8)
+export function isFinderSeparator(row: number, col: number, moduleCount: number): boolean {
+  if (row <= 7 && col <= 7) return true;
+  if (row <= 7 && col >= moduleCount - 8) return true;
+  if (row >= moduleCount - 8 && col <= 7) return true;
+  return false;
+}
+
+// Helper to check if coordinate is in center logo zone (for legacy badge mode)
 export function isLogoZone(row: number, col: number, moduleCount: number, logoRadiusModules: number): boolean {
   if (logoRadiusModules <= 0) return false;
   const center = Math.floor(moduleCount / 2);
@@ -87,8 +107,44 @@ export function isLogoZone(row: number, col: number, moduleCount: number, logoRa
   return distRow <= logoRadiusModules && distCol <= logoRadiusModules;
 }
 
+export interface ScanVerificationResult {
+  isScannable: boolean;
+  decodedText?: string;
+  confidence: number;
+  decodeTimeMs: number;
+}
+
 /**
- * Draws the high-fidelity QR Code onto an HTML Canvas
+ * Verifies if the rendered canvas can be optically decoded by standard QR engine
+ */
+export function verifyCanvasScannability(canvas: HTMLCanvasElement): ScanVerificationResult {
+  const t0 = performance.now();
+  try {
+    const ctx = canvas.getContext('2d');
+    if (!ctx || canvas.width === 0 || canvas.height === 0) {
+      return { isScannable: false, confidence: 0, decodeTimeMs: 0 };
+    }
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(imgData.data, canvas.width, canvas.height, {
+      inversionAttempts: 'dontInvert',
+    });
+    const elapsed = Math.round(performance.now() - t0);
+    if (code && code.data) {
+      return {
+        isScannable: true,
+        decodedText: code.data,
+        confidence: 100,
+        decodeTimeMs: elapsed,
+      };
+    }
+    return { isScannable: false, confidence: 0, decodeTimeMs: elapsed };
+  } catch {
+    return { isScannable: false, confidence: 0, decodeTimeMs: Math.round(performance.now() - t0) };
+  }
+}
+
+/**
+ * Draws the high-fidelity QR Code onto an HTML Canvas with Photo QR Code interpretation
  */
 export async function renderQRToCanvas(
   canvas: HTMLCanvasElement,
@@ -96,7 +152,7 @@ export async function renderQRToCanvas(
 ): Promise<void> {
   const {
     text,
-    errorCorrectionLevel = options.logoUrl ? 'H' : 'M',
+    errorCorrectionLevel = (options.photoUrl || options.logoUrl) ? 'H' : 'M',
     foregroundColor = '#000000',
     backgroundColor = '#ffffff',
     gradientEnabled = false,
@@ -106,17 +162,30 @@ export async function renderQRToCanvas(
     dotShape = 'square',
     eyeFrameShape = 'square',
     eyeBallShape = 'square',
+    photoUrl = null,
+    photoQRMode = 'halftone',
+    photoContrast = 1.4,
+    photoBrightness = 1.0,
+    photoDotScale = 0.62,
+    photoOpacity = 0.95,
+    photoInvert = false,
+    photoBWMode = true,
     logoUrl = null,
     logoSize = 0.22,
     logoPadding = 8,
     logoBackground = '#ffffff',
-    logoShape = 'rounded',
+    logoShape = 'square',
     targetSizePx = 1000,
   } = options;
 
-  // Generate QR Matrix
+  // Active image for photo QR: prefer photoUrl, fallback to logoUrl if provided
+  const activeImage = photoUrl || logoUrl;
+  const isWholeImageMode = Boolean(activeImage && photoQRMode !== 'center-logo');
+
+  // Generate QR Matrix (Level H guarantees 30% error correction tolerance)
+  const effectiveEC = (activeImage ? 'H' : errorCorrectionLevel) as ErrorCorrection;
   const qr = QRCode.create(text || 'https://qrject.dev', {
-    errorCorrectionLevel,
+    errorCorrectionLevel: effectiveEC,
   });
 
   const moduleCount = qr.modules.size;
@@ -127,18 +196,134 @@ export async function renderQRToCanvas(
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
 
-  // Background
+  // 1. Draw Clean Base Background
   ctx.fillStyle = backgroundColor;
   ctx.fillRect(0, 0, size, size);
 
-  // Quiet zone margin: standard 4 modules on each side
+  // Quiet zone margin: 4 modules on each side (standard optical boundary)
   const quietModules = 4;
   const totalModules = moduleCount + quietModules * 2;
   const cellSize = size / totalModules;
-  const offsetX = quietModules * cellSize;
-  const offsetY = quietModules * cellSize;
+  const matrixX = quietModules * cellSize;
+  const matrixY = quietModules * cellSize;
+  const matrixSize = moduleCount * cellSize;
 
-  // Compute gradient if enabled
+  // 2. Render WHOLE IMAGE AS THE QR CODE
+  let photoImg: HTMLImageElement | null = null;
+  if (isWholeImageMode && activeImage) {
+    try {
+      photoImg = await loadImage(activeImage);
+
+      // Create an offscreen buffer at matrix size
+      const offCanvas = document.createElement('canvas');
+      offCanvas.width = Math.round(matrixSize);
+      offCanvas.height = Math.round(matrixSize);
+      const offCtx = offCanvas.getContext('2d');
+
+      if (offCtx && photoImg) {
+        // Center crop and cover the matrix area
+        const imgAspect = photoImg.width / photoImg.height;
+        let sx = 0;
+        let sy = 0;
+        let sWidth = photoImg.width;
+        let sHeight = photoImg.height;
+
+        if (imgAspect > 1) {
+          sWidth = photoImg.height;
+          sx = (photoImg.width - sWidth) / 2;
+        } else if (imgAspect < 1) {
+          sHeight = photoImg.width;
+          sy = (photoImg.height - sHeight) / 2;
+        }
+
+        offCtx.drawImage(
+          photoImg,
+          sx,
+          sy,
+          sWidth,
+          sHeight,
+          0,
+          0,
+          offCanvas.width,
+          offCanvas.height
+        );
+
+        // Preprocess into High-Contrast 300 DPI Black and White Monochrome
+        if (photoBWMode) {
+          const imgData = offCtx.getImageData(0, 0, offCanvas.width, offCanvas.height);
+          const d = imgData.data;
+          const contrast = photoContrast;
+          const brightness = photoBrightness;
+
+          for (let i = 0; i < d.length; i += 4) {
+            // Standard photographic luminance (Rec. 601)
+            let lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+            // Apply contrast and brightness adjustments
+            lum = (lum - 128) * contrast + 128 + (brightness - 1.0) * 128;
+            if (photoInvert) lum = 255 - lum;
+            lum = Math.max(0, Math.min(255, lum));
+
+            d[i] = lum;
+            d[i + 1] = lum;
+            d[i + 2] = lum;
+          }
+
+          // Optional 1-bit Floyd-Steinberg dithering if requested
+          if (photoQRMode === 'dither') {
+            const w = offCanvas.width;
+            const h = offCanvas.height;
+            for (let y = 0; y < h; y++) {
+              for (let x = 0; x < w; x++) {
+                const idx = (y * w + x) * 4;
+                const oldVal = d[idx];
+                const newVal = oldVal < 128 ? 0 : 255;
+                d[idx] = newVal;
+                d[idx + 1] = newVal;
+                d[idx + 2] = newVal;
+                const err = oldVal - newVal;
+
+                // Diffuse error
+                if (x + 1 < w) d[(y * w + (x + 1)) * 4] += (err * 7) >> 4;
+                if (x - 1 >= 0 && y + 1 < h) d[((y + 1) * w + (x - 1)) * 4] += (err * 3) >> 4;
+                if (y + 1 < h) d[((y + 1) * w + x) * 4] += (err * 5) >> 4;
+                if (x + 1 < w && y + 1 < h) d[((y + 1) * w + (x + 1)) * 4] += (err * 1) >> 4;
+              }
+            }
+          }
+
+          offCtx.putImageData(imgData, 0, 0);
+        }
+
+        // Composite the processed photographic matrix onto the main canvas
+        ctx.save();
+        ctx.globalAlpha = Math.min(Math.max(photoOpacity, 0.2), 1.0);
+        ctx.drawImage(offCanvas, matrixX, matrixY, matrixSize, matrixSize);
+        ctx.restore();
+
+        // Protect the 3 Finder Pattern Registration Targets
+        // Scanners require clean quiet zones around the 7x7 finder patterns to orient
+        ctx.fillStyle = backgroundColor;
+        // Top-Left Finder Cleanout (8x8)
+        ctx.fillRect(matrixX - cellSize * 0.5, matrixY - cellSize * 0.5, 8.5 * cellSize, 8.5 * cellSize);
+        // Top-Right Finder Cleanout (8x8)
+        ctx.fillRect(matrixX + (moduleCount - 8) * cellSize, matrixY - cellSize * 0.5, 8.5 * cellSize, 8.5 * cellSize);
+        // Bottom-Left Finder Cleanout (8x8)
+        ctx.fillRect(matrixX - cellSize * 0.5, matrixY + (moduleCount - 8) * cellSize, 8.5 * cellSize, 8.5 * cellSize);
+      }
+    } catch (err) {
+      console.warn('Could not render whole-image photo to canvas:', err);
+    }
+  }
+
+  // Pre-calculate logo module radius to mask cells behind logo in legacy badge mode
+  let logoRadiusModules = 0;
+  if (!isWholeImageMode && activeImage && photoQRMode === 'center-logo') {
+    const logoPx = size * Math.min(Math.max(logoSize, 0.15), 0.32);
+    const logoModules = Math.ceil(logoPx / cellSize);
+    logoRadiusModules = Math.floor(logoModules / 2) + 1;
+  }
+
+  // Foreground fill / gradient
   let fillStyle: string | CanvasGradient = foregroundColor;
   if (gradientEnabled && gradientEndColor) {
     const grad = ctx.createLinearGradient(0, 0, size, size);
@@ -147,33 +332,56 @@ export async function renderQRToCanvas(
     fillStyle = grad;
   }
 
-  // Pre-calculate logo module radius to mask cells behind logo
-  let logoRadiusModules = 0;
-  if (logoUrl) {
-    const logoPx = size * Math.min(Math.max(logoSize, 0.15), 0.32);
-    const logoModules = Math.ceil(logoPx / cellSize);
-    logoRadiusModules = Math.floor(logoModules / 2) + 1;
-  }
-
-  ctx.fillStyle = fillStyle;
-
-  // Draw regular data & alignment modules (excluding finders and logo zone)
+  // 3. DRAW DATA & ALIGNMENT MODULES
   for (let r = 0; r < moduleCount; r++) {
     for (let c = 0; c < moduleCount; c++) {
       if (isFinderPattern(r, c, moduleCount)) continue;
-      if (logoUrl && isLogoZone(r, c, moduleCount, logoRadiusModules)) continue;
+
+      // In legacy center logo mode, skip cells behind the logo badge
+      if (!isWholeImageMode && activeImage && photoQRMode === 'center-logo') {
+        if (isLogoZone(r, c, moduleCount, logoRadiusModules)) continue;
+      }
+
+      // In whole-image photo mode, skip separator margin around finders for clean registration
+      if (isWholeImageMode && isFinderSeparator(r, c, moduleCount)) {
+        continue;
+      }
 
       const isDark = qr.modules.get(r, c);
-      if (!isDark) continue;
+      const x = matrixX + c * cellSize;
+      const y = matrixY + r * cellSize;
 
-      const x = offsetX + c * cellSize;
-      const y = offsetY + r * cellSize;
+      if (isWholeImageMode) {
+        // Photo QR Interpreter Modulation
+        const scale = photoQRMode === 'microdots' ? 0.48 : Math.max(0.38, Math.min(photoDotScale, 0.85));
+        const dotSize = cellSize * scale;
+        const padX = (cellSize - dotSize) / 2;
+        const padY = (cellSize - dotSize) / 2;
 
-      drawModule(ctx, x, y, cellSize, dotShape);
+        if (isDark) {
+          ctx.fillStyle = fillStyle;
+          drawModule(ctx, x + padX, y + padY, dotSize, dotShape);
+        } else {
+          // In Halftone / Fusion mode, draw light core so QR scanner sampling reads pure 0
+          if (photoQRMode === 'halftone' || photoQRMode === 'fusion') {
+            const lightDotSize = dotSize * 0.72;
+            const lpadX = (cellSize - lightDotSize) / 2;
+            const lpadY = (cellSize - lightDotSize) / 2;
+            ctx.fillStyle = backgroundColor;
+            // Draw clean light core module
+            drawModule(ctx, x + lpadX, y + lpadY, lightDotSize, dotShape === 'diamond' ? 'diamond' : 'dots');
+          }
+        }
+      } else {
+        // Standard high-contrast QR code rendering
+        if (!isDark) continue;
+        ctx.fillStyle = fillStyle;
+        drawModule(ctx, x, y, cellSize, dotShape);
+      }
     }
   }
 
-  // Draw 3 Finder Eyes (Top-Left, Top-Right, Bottom-Left)
+  // 4. DRAW 3 FINDER EYES (Top-Left, Top-Right, Bottom-Left)
   const eyePositions = [
     { row: 0, col: 0 },
     { row: 0, col: moduleCount - 7 },
@@ -181,8 +389,8 @@ export async function renderQRToCanvas(
   ];
 
   for (const pos of eyePositions) {
-    const eyeX = offsetX + pos.col * cellSize;
-    const eyeY = offsetY + pos.row * cellSize;
+    const eyeX = matrixX + pos.col * cellSize;
+    const eyeY = matrixY + pos.row * cellSize;
     const eyeSize = 7 * cellSize;
 
     drawFinderEye(
@@ -199,20 +407,18 @@ export async function renderQRToCanvas(
     );
   }
 
-  // Draw Center Logo if provided
-  if (logoUrl) {
+  // 5. LEGACY CENTER BADGE (Only if explicitly set to center-logo mode)
+  if (!isWholeImageMode && activeImage && photoQRMode === 'center-logo') {
     try {
-      const logoImg = await loadImage(logoUrl);
+      const logoImg = await loadImage(activeImage);
       const logoBoxSize = size * Math.min(Math.max(logoSize, 0.15), 0.32);
       const logoX = (size - logoBoxSize) / 2;
       const logoY = (size - logoBoxSize) / 2;
 
-      // Draw Logo Background Cutout
       ctx.save();
       ctx.fillStyle = logoBackground;
-      ctx.shadowColor = 'rgba(0,0,0,0.15)';
+      ctx.shadowColor = 'rgba(0,0,0,0.2)';
       ctx.shadowBlur = 8;
-      ctx.shadowOffsetX = 0;
       ctx.shadowOffsetY = 2;
 
       const radius =
@@ -237,7 +443,6 @@ export async function renderQRToCanvas(
       ctx.fill();
       ctx.restore();
 
-      // Clip and draw image inside padded area
       const innerPad = Math.max(logoPadding, 4);
       const innerSize = logoBoxSize - innerPad * 2;
       const innerX = logoX + innerPad;
@@ -258,7 +463,6 @@ export async function renderQRToCanvas(
       }
       ctx.clip();
 
-      // Preserve aspect ratio
       const aspect = logoImg.width / logoImg.height;
       let drawW = innerSize;
       let drawH = innerSize;
@@ -273,7 +477,7 @@ export async function renderQRToCanvas(
         drawX = innerX + (innerSize - drawW) / 2;
       }
 
-      if (options.photoBWMode) {
+      if (photoBWMode) {
         ctx.filter = 'grayscale(100%) contrast(150%) brightness(95%)';
       }
 
@@ -537,12 +741,11 @@ function crc32(buf: Uint8Array): number {
 
 /**
  * Generates an SVG string of the QR Code with 300 DPI vector calibration,
- * optional embedded photo/logo, B/W filtering, and module/eye geometry.
+ * embedded photo/image, high-contrast B/W filtering, and module/eye geometry.
  */
 export function generateQRSVG(options: QROptions): string {
   const {
     text,
-    errorCorrectionLevel = options.logoUrl ? 'H' : 'M',
     foregroundColor = '#000000',
     backgroundColor = '#ffffff',
     eyeOuterColor = foregroundColor,
@@ -550,63 +753,128 @@ export function generateQRSVG(options: QROptions): string {
     dotShape = 'square',
     eyeFrameShape = 'square',
     eyeBallShape = 'square',
+    photoUrl = null,
+    photoQRMode = 'halftone',
+    photoDotScale = 0.62,
+    photoOpacity = 0.95,
+    photoBWMode = true,
     logoUrl = null,
     logoSize = 0.22,
     logoPadding = 8,
     logoBackground = '#ffffff',
     logoShape = 'square',
-    photoBWMode = false,
   } = options;
 
-  const qr = QRCode.create(text || 'https://qrject.dev', { errorCorrectionLevel });
+  const activeImage = photoUrl || logoUrl;
+  const isWholeImageMode = Boolean(activeImage && photoQRMode !== 'center-logo');
+
+  const qr = QRCode.create(text || 'https://qrject.dev', {
+    errorCorrectionLevel: activeImage ? 'H' : (options.errorCorrectionLevel || 'M'),
+  });
   const moduleCount = qr.modules.size;
   const quietModules = 4;
   const total = moduleCount + quietModules * 2;
   const cellSize = 10;
   const totalSize = total * cellSize;
-  const offset = quietModules * cellSize;
-
-  // Calculate logo modules to mask center cells
-  let logoRadiusModules = 0;
-  if (logoUrl) {
-    const logoPx = totalSize * Math.min(Math.max(logoSize, 0.15), 0.32);
-    const logoModules = Math.ceil(logoPx / cellSize);
-    logoRadiusModules = Math.floor(logoModules / 2) + 1;
-  }
+  const matrixX = quietModules * cellSize;
+  const matrixY = quietModules * cellSize;
+  const matrixSize = moduleCount * cellSize;
 
   let defsElements = '';
   if (photoBWMode) {
     defsElements += `
     <filter id="svg-qr-bw">
       <feColorMatrix type="matrix" values="0.33 0.33 0.33 0 0 0.33 0.33 0.33 0 0 0.33 0.33 0.33 0 0 0 0 0 1 0"/>
+      <feComponentTransfer>
+        <feFuncR type="linear" slope="1.5" intercept="-0.25"/>
+        <feFuncG type="linear" slope="1.5" intercept="-0.25"/>
+        <feFuncB type="linear" slope="1.5" intercept="-0.25"/>
+      </feComponentTransfer>
     </filter>`;
+  }
+
+  let photoSvg = '';
+  if (isWholeImageMode && activeImage) {
+    defsElements += `
+    <clipPath id="svg-matrix-clip">
+      <rect x="${matrixX}" y="${matrixY}" width="${matrixSize}" height="${matrixSize}" />
+    </clipPath>`;
+
+    // Embed whole image under matrix
+    photoSvg = `
+    <g clip-path="url(#svg-matrix-clip)" opacity="${photoOpacity}">
+      <image href="${activeImage}" x="${matrixX}" y="${matrixY}" width="${matrixSize}" height="${matrixSize}" preserveAspectRatio="xMidYMid slice" ${photoBWMode ? 'filter="url(#svg-qr-bw)"' : ''} />
+    </g>
+    <!-- Clear Finder Corners -->
+    <rect x="${matrixX - cellSize * 0.5}" y="${matrixY - cellSize * 0.5}" width="${8.5 * cellSize}" height="${8.5 * cellSize}" fill="${backgroundColor}" />
+    <rect x="${matrixX + (moduleCount - 8) * cellSize}" y="${matrixY - cellSize * 0.5}" width="${8.5 * cellSize}" height="${8.5 * cellSize}" fill="${backgroundColor}" />
+    <rect x="${matrixX - cellSize * 0.5}" y="${matrixY + (moduleCount - 8) * cellSize}" width="${8.5 * cellSize}" height="${8.5 * cellSize}" fill="${backgroundColor}" />
+    `;
+  }
+
+  // Pre-calculate logo module radius to mask center cells in badge mode
+  let logoRadiusModules = 0;
+  if (!isWholeImageMode && activeImage && photoQRMode === 'center-logo') {
+    const logoPx = totalSize * Math.min(Math.max(logoSize, 0.15), 0.32);
+    const logoModules = Math.ceil(logoPx / cellSize);
+    logoRadiusModules = Math.floor(logoModules / 2) + 1;
   }
 
   let svgElements = '';
 
-  // Draw data & alignment modules
+  // Draw data modules
   for (let r = 0; r < moduleCount; r++) {
     for (let c = 0; c < moduleCount; c++) {
       if (isFinderPattern(r, c, moduleCount)) continue;
-      if (logoUrl && isLogoZone(r, c, moduleCount, logoRadiusModules)) continue;
-      if (!qr.modules.get(r, c)) continue;
+      if (!isWholeImageMode && activeImage && photoQRMode === 'center-logo') {
+        if (isLogoZone(r, c, moduleCount, logoRadiusModules)) continue;
+      }
+      if (isWholeImageMode && isFinderSeparator(r, c, moduleCount)) continue;
 
-      const x = offset + c * cellSize;
-      const y = offset + r * cellSize;
+      const isDark = qr.modules.get(r, c);
+      const x = matrixX + c * cellSize;
+      const y = matrixY + r * cellSize;
 
-      if (dotShape === 'dots') {
-        const radius = cellSize * 0.45;
-        svgElements += `<circle cx="${x + cellSize / 2}" cy="${y + cellSize / 2}" r="${radius}" fill="${foregroundColor}" />`;
-      } else if (dotShape === 'rounded') {
-        svgElements += `<rect x="${x + 0.5}" y="${y + 0.5}" width="${cellSize - 1}" height="${cellSize - 1}" rx="${cellSize * 0.3}" fill="${foregroundColor}" />`;
-      } else if (dotShape === 'diamond') {
-        const cx = x + cellSize / 2;
-        const cy = y + cellSize / 2;
-        svgElements += `<polygon points="${cx},${y} ${x + cellSize},${cy} ${cx},${y + cellSize} ${x},${cy}" fill="${foregroundColor}" />`;
-      } else if (dotShape === 'classy') {
-        svgElements += `<rect x="${x + 0.5}" y="${y + 0.5}" width="${cellSize - 1}" height="${cellSize - 1}" rx="${cellSize * 0.4}" fill="${foregroundColor}" />`;
+      if (isWholeImageMode) {
+        const scale = photoQRMode === 'microdots' ? 0.48 : Math.max(0.38, Math.min(photoDotScale, 0.85));
+        const dotSize = cellSize * scale;
+        const padX = (cellSize - dotSize) / 2;
+        const padY = (cellSize - dotSize) / 2;
+
+        if (isDark) {
+          if (dotShape === 'dots') {
+            const rad = dotSize / 2;
+            svgElements += `<circle cx="${x + padX + rad}" cy="${y + padY + rad}" r="${rad}" fill="${foregroundColor}" />`;
+          } else if (dotShape === 'rounded') {
+            svgElements += `<rect x="${x + padX}" y="${y + padY}" width="${dotSize}" height="${dotSize}" rx="${dotSize * 0.35}" fill="${foregroundColor}" />`;
+          } else if (dotShape === 'diamond') {
+            const cx = x + padX + dotSize / 2;
+            const cy = y + padY + dotSize / 2;
+            svgElements += `<polygon points="${cx},${y + padY} ${x + padX + dotSize},${cy} ${cx},${y + padY + dotSize} ${x + padX},${cy}" fill="${foregroundColor}" />`;
+          } else {
+            svgElements += `<rect x="${x + padX}" y="${y + padY}" width="${dotSize}" height="${dotSize}" fill="${foregroundColor}" />`;
+          }
+        } else if (photoQRMode === 'halftone' || photoQRMode === 'fusion') {
+          // Light core for contrast
+          const lightSize = dotSize * 0.72;
+          const lpadX = (cellSize - lightSize) / 2;
+          const lpadY = (cellSize - lightSize) / 2;
+          svgElements += `<circle cx="${x + lpadX + lightSize / 2}" cy="${y + lpadY + lightSize / 2}" r="${lightSize / 2}" fill="${backgroundColor}" />`;
+        }
       } else {
-        svgElements += `<rect x="${x}" y="${y}" width="${cellSize}" height="${cellSize}" fill="${foregroundColor}" />`;
+        if (!isDark) continue;
+        if (dotShape === 'dots') {
+          const radius = cellSize * 0.45;
+          svgElements += `<circle cx="${x + cellSize / 2}" cy="${y + cellSize / 2}" r="${radius}" fill="${foregroundColor}" />`;
+        } else if (dotShape === 'rounded') {
+          svgElements += `<rect x="${x + 0.5}" y="${y + 0.5}" width="${cellSize - 1}" height="${cellSize - 1}" rx="${cellSize * 0.3}" fill="${foregroundColor}" />`;
+        } else if (dotShape === 'diamond') {
+          const cx = x + cellSize / 2;
+          const cy = y + cellSize / 2;
+          svgElements += `<polygon points="${cx},${y} ${x + cellSize},${cy} ${cx},${y + cellSize} ${x},${cy}" fill="${foregroundColor}" />`;
+        } else {
+          svgElements += `<rect x="${x}" y="${y}" width="${cellSize}" height="${cellSize}" fill="${foregroundColor}" />`;
+        }
       }
     }
   }
@@ -619,11 +887,10 @@ export function generateQRSVG(options: QROptions): string {
   ];
 
   for (const pos of eyePositions) {
-    const eyeX = offset + pos.col * cellSize;
-    const eyeY = offset + pos.row * cellSize;
+    const eyeX = matrixX + pos.col * cellSize;
+    const eyeY = matrixY + pos.row * cellSize;
     const eyeSize = 7 * cellSize;
 
-    // Outer frame rx
     const frameRx =
       eyeFrameShape === 'circle'
         ? eyeSize / 2
@@ -633,7 +900,6 @@ export function generateQRSVG(options: QROptions): string {
         ? cellSize * 1.6
         : 0;
 
-    // Hollow 5x5 rx
     const hollowSize = 5 * cellSize;
     const hollowRx =
       eyeFrameShape === 'circle'
@@ -644,7 +910,6 @@ export function generateQRSVG(options: QROptions): string {
         ? cellSize * 1.0
         : 0;
 
-    // Inner 3x3 ball
     const ballSize = 3 * cellSize;
     const ballX = eyeX + 2 * cellSize;
     const ballY = eyeY + 2 * cellSize;
@@ -668,9 +933,9 @@ export function generateQRSVG(options: QROptions): string {
     }
   }
 
-  // Draw Logo / Photo if present
+  // Legacy center badge if in center-logo mode
   let logoElements = '';
-  if (logoUrl) {
+  if (!isWholeImageMode && activeImage && photoQRMode === 'center-logo') {
     const logoBoxSize = totalSize * Math.min(Math.max(logoSize, 0.15), 0.32);
     const logoX = (totalSize - logoBoxSize) / 2;
     const logoY = (totalSize - logoBoxSize) / 2;
@@ -682,9 +947,8 @@ export function generateQRSVG(options: QROptions): string {
     const innerY = logoY + pad;
     const innerRadius = logoShape === 'circle' ? innerSize / 2 : logoShape === 'rounded' ? innerSize * 0.15 : 0;
 
-    // Clip path for photo
     defsElements += `
-    <clipPath id="svg-qr-photo-clip">
+    <clipPath id="svg-qr-badge-clip">
       ${
         logoShape === 'circle'
           ? `<circle cx="${innerX + innerSize / 2}" cy="${innerY + innerSize / 2}" r="${innerSize / 2}" />`
@@ -692,20 +956,19 @@ export function generateQRSVG(options: QROptions): string {
       }
     </clipPath>`;
 
-    // Background badge cutout
     if (logoShape === 'circle') {
       logoElements += `<circle cx="${logoX + logoBoxSize / 2}" cy="${logoY + logoBoxSize / 2}" r="${logoBoxSize / 2}" fill="${logoBackground}" stroke="#000000" stroke-width="1" />`;
     } else {
       logoElements += `<rect x="${logoX}" y="${logoY}" width="${logoBoxSize}" height="${logoBoxSize}" rx="${boxRadius}" fill="${logoBackground}" stroke="#000000" stroke-width="1" />`;
     }
 
-    // Photo/Logo Image
-    logoElements += `<image href="${logoUrl}" x="${innerX}" y="${innerY}" width="${innerSize}" height="${innerSize}" preserveAspectRatio="xMidYMid meet" clip-path="url(#svg-qr-photo-clip)" ${photoBWMode ? 'filter="url(#svg-qr-bw)"' : ''} />`;
+    logoElements += `<image href="${activeImage}" x="${innerX}" y="${innerY}" width="${innerSize}" height="${innerSize}" preserveAspectRatio="xMidYMid meet" clip-path="url(#svg-qr-badge-clip)" ${photoBWMode ? 'filter="url(#svg-qr-bw)"' : ''} />`;
   }
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalSize} ${totalSize}" width="${totalSize}" height="${totalSize}">
   ${defsElements ? `<defs>${defsElements}</defs>` : ''}
   <rect width="${totalSize}" height="${totalSize}" fill="${backgroundColor}"/>
+  ${photoSvg}
   ${svgElements}
   ${logoElements}
 </svg>`;

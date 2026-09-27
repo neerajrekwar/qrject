@@ -19,6 +19,8 @@ import { QRHistoryView } from './QRHistoryView';
 import { ExportControlsBar } from './ExportControlsBar';
 import { ExportFormat } from '@/lib/qr-export';
 
+import { PHOTO_PRESETS } from '@/lib/photo-presets';
+
 interface LiveArtifactModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -45,11 +47,12 @@ export function LiveArtifactModal({ isOpen, onClose }: LiveArtifactModalProps) {
     dotShape: 'square',
     eyeFrameShape: 'square',
     eyeBallShape: 'square',
-    logoUrl: null,
-    logoSize: 0.22,
-    logoPadding: 8,
-    logoBackground: '#ffffff',
-    logoShape: 'square',
+    photoUrl: PHOTO_PRESETS[0].dataUrl,
+    photoQRMode: 'halftone',
+    photoContrast: 1.45,
+    photoBrightness: 1.0,
+    photoDotScale: 0.62,
+    photoBWMode: true,
     errorCorrectionLevel: 'H',
     dpi: 300,
     targetSizePx: 1000,
