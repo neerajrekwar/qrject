@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { GitBranch, Globe, Share2, Terminal, ArrowUp } from 'lucide-react';
 
 interface TechnicalFooterProps {
@@ -100,6 +101,14 @@ export function TechnicalFooter({ onOpenQRArtifact }: TechnicalFooterProps) {
                 {'// ARTIFACTS'}
               </div>
               <ul className="space-y-2 text-zinc-300">
+                <li>
+                  <Link
+                    href="/nomral-dpi-photo"
+                    className="hover:text-[#ccff00] transition-colors text-left flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>[LIVE]</span> <span>PHOTO DPI MAKER (B/W)</span>
+                  </Link>
+                </li>
                 {onOpenQRArtifact && (
                   <li>
                     <button

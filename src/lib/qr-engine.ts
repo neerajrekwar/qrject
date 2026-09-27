@@ -973,3 +973,6 @@ export function generateQRSVG(options: QROptions): string {
   ${logoElements}
 </svg>`;
 }
+
+export { blendImageWithQRCode, loadImageElement } from './photo-qr-blend';
+export type { PhotoQRBlendOptions, PhotoQRBlendResult } from './photo-qr-blend';

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, ChangeEvent } from 'react';
+import Link from 'next/link';
 import {
   UploadCloud,
   Sliders,
@@ -18,6 +19,7 @@ import {
   SlidersHorizontal,
   CheckCircle2,
   AlertCircle,
+  Printer,
 } from 'lucide-react';
 import {
   QROptions,
@@ -810,6 +812,13 @@ export function HeroSection({
                     <span>Full Modal Suite →</span>
                   </button>
                 )}
+                <Link
+                  href="/nomral-dpi-photo"
+                  className="font-black text-black hover:text-emerald-800 underline flex items-center gap-1 cursor-pointer"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Photo DPI Maker →</span>
+                </Link>
               </div>
             </div>
 
