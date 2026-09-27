@@ -74,6 +74,12 @@ export function Navbar({ onOpenContact, onOpenQRArtifact }: NavbarProps) {
             <Activity className="w-3.5 h-3.5" />
             <span>FITNESS</span>
           </Link>
+          <Link
+            href="/fitness-glass/winter-arc-2026"
+            className="px-3 py-2 font-mono text-xs font-black tracking-wider text-black bg-[#ccff00] hover:bg-black hover:text-[#ccff00] transition-colors flex items-center gap-1 border-l-2 border-black"
+          >
+            <span>WINTER ARC</span>
+          </Link>
           {onOpenQRArtifact && (
             <button
               onClick={onOpenQRArtifact}
@@ -154,6 +160,13 @@ export function Navbar({ onOpenContact, onOpenQRArtifact }: NavbarProps) {
               className="block p-3 border-2 border-black bg-white font-mono text-xs font-black tracking-widest text-black shadow-[3px_3px_0px_#000000] hover:bg-[#ccff00]"
             >
               FITNESS GLASS (TIMETABLE & TARGETS) →
+            </Link>
+            <Link
+              href="/fitness-glass/winter-arc-2026"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block p-3 border-2 border-black bg-[#ccff00] font-mono text-xs font-black tracking-widest text-black shadow-[3px_3px_0px_#000000]"
+            >
+              🔥 WINTER ARC 2026 (90D / 24H PROTOCOL) →
             </Link>
             {onOpenQRArtifact && (
               <button

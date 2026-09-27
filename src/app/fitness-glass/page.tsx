@@ -467,6 +467,13 @@ export default function FitnessGlassPage() {
             </div>
 
             <Link
+              href="/fitness-glass/winter-arc-2026"
+              className="flex items-center gap-1.5 border-2 border-black bg-[#ccff00] hover:bg-black hover:text-[#ccff00] px-3 py-2 font-mono text-xs font-black shadow-[2px_2px_0px_#000000] transition-all cursor-pointer"
+            >
+              <span>🔥 WINTER ARC 2026 (90D / 24H)</span>
+            </Link>
+
+            <Link
               href="/barcode-pick"
               className="hidden lg:flex items-center gap-1.5 border-2 border-black bg-white hover:bg-zinc-100 px-3 py-2 font-mono text-xs font-black shadow-[2px_2px_0px_#000000] transition-all cursor-pointer"
             >
@@ -648,6 +655,27 @@ export default function FitnessGlassPage() {
                 ISO A4 Paper Ready · Clean empty boxes for manual black ballpoint pen ticking · Manual daily score lines · Auto-landscape (&gt;12) or portrait (&lt;=11).
               </p>
             </button>
+          </div>
+
+          {/* Special Winter Arc 2026 Callout Banner */}
+          <div className="border-2 border-black bg-[#fafaf8] p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-mono">
+            <div className="flex items-center gap-3">
+              <span className="text-xl">🔥</span>
+              <div>
+                <div className="font-black text-xs text-black uppercase">
+                  NEW: WINTER ARC 2026 CHALLENGE (90 DAYS / 24-HOUR PRECISION PROTOCOL)
+                </div>
+                <div className="text-[11px] text-zinc-600">
+                  Full 24-hour hour-by-hour non-negotiable routine + 90-Day milestone matrix + printable A4 black ball pen sheets.
+                </div>
+              </div>
+            </div>
+            <Link
+              href="/fitness-glass/winter-arc-2026"
+              className="px-3.5 py-1.5 border-2 border-black bg-black text-[#ccff00] hover:bg-[#ccff00] hover:text-black font-black text-xs shadow-[2px_2px_0px_#000000] active:shadow-none transition-all cursor-pointer text-center whitespace-nowrap"
+            >
+              LAUNCH WINTER ARC 2026 →
+            </Link>
           </div>
 
         </div>
