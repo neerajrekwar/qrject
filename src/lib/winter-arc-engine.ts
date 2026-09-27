@@ -1,7 +1,7 @@
 import { jsPDF } from 'jspdf';
 import { insertDpiIntoPngBlob } from './qr-engine';
 
-export type WinterArcViewMode = '24hrs_timetable' | '90days_matrix' | 'phases_milestones';
+export type WinterArcViewMode = '24hrs_timetable' | '90days_matrix' | 'phases_milestones' | 'measuring_report';
 export type WinterArcPrintStyle = 'blank_paper_pen' | 'with_digital_checks';
 export type WinterArcOrientation = 'auto' | 'portrait' | 'landscape';
 export type WinterArcCategory =
@@ -630,8 +630,408 @@ export async function exportWinterArcToPDF(state: WinterArcChallengeState): Prom
   doc.text('Date Logged: ____________________', rightX, footerY + 10.5);
   doc.text('Athlete Signature: _________________', rightX, footerY + 16.5);
 
+  // =========================================================================
+  // ATTACHED LAST PAGE: PROGRESS REPORT RAW MEASURING CHART & ATTESTATION
+  // =========================================================================
+  doc.addPage('a4', isLandscape ? 'landscape' : 'portrait');
+  renderMeasuringChartPageToPDF(doc, state, isLandscape, pageWidth, pageHeight, margin, contentWidth);
+
   return doc.output('blob');
 }
+
+// Standalone PDF export for just the Attached Measuring Sheet
+export async function exportWinterArcMeasuringSheetPDF(state: WinterArcChallengeState): Promise<Blob> {
+  const isLandscape =
+    state.printOrientation === 'landscape' ||
+    (state.printOrientation === 'auto' && (state.slots24h.length > 12 || state.activeView === '90days_matrix'));
+
+  const doc = new jsPDF({
+    orientation: isLandscape ? 'landscape' : 'portrait',
+    unit: 'mm',
+    format: 'a4',
+  });
+
+  const pageWidth = isLandscape ? 297 : 210;
+  const pageHeight = isLandscape ? 210 : 297;
+  const margin = 10;
+  const contentWidth = pageWidth - margin * 2;
+
+  renderMeasuringChartPageToPDF(doc, state, isLandscape, pageWidth, pageHeight, margin, contentWidth);
+  return doc.output('blob');
+}
+
+// Internal renderer for the Attached Measuring Chart Page in jsPDF
+function renderMeasuringChartPageToPDF(
+  doc: jsPDF,
+  state: WinterArcChallengeState,
+  isLandscape: boolean,
+  pageWidth: number,
+  pageHeight: number,
+  margin: number,
+  contentWidth: number
+) {
+  // Background clean canvas
+  doc.setFillColor(255, 255, 255);
+  doc.rect(0, 0, pageWidth, pageHeight, 'F');
+
+  // Outer framing boundary
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.8);
+  doc.rect(margin - 2, margin - 2, contentWidth + 4, pageHeight - margin * 2 + 4);
+
+  // Inner border hairline
+  doc.setLineWidth(0.2);
+  doc.rect(margin, margin, contentWidth, pageHeight - margin * 2);
+
+  let curY = margin + 5;
+
+  // Header Bar
+  doc.setFillColor(0, 0, 0);
+  doc.rect(margin, margin, contentWidth, 14, 'F');
+
+  doc.setTextColor(204, 255, 0); // Neon accent
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10.5);
+  doc.text(
+    'WINTER ARC 2026 // PROGRESS REPORT RAW MEASURING CHART & ATTESTATION LOG',
+    margin + 4,
+    margin + 8.5
+  );
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(7.5);
+  doc.text(
+    'ATTACHED LAST PAGE SPECIFICATION · BLACK BALLPOINT PEN MANUAL PLOTTING & PHYSICAL MEASUREMENT',
+    margin + 4,
+    margin + 12.2
+  );
+
+  doc.text('OCT 01 – DEC 31, 2026 | 80% STANDARD', margin + contentWidth - 62, margin + 12.2);
+
+  curY = margin + 16;
+
+  // Athlete Info Strip
+  doc.setFillColor(245, 245, 240);
+  doc.rect(margin, curY, contentWidth, 7, 'F');
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.3);
+  doc.line(margin, curY + 7, margin + contentWidth, curY + 7);
+
+  doc.setTextColor(0, 0, 0);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.text(`ATHLETE: ${state.athleteName.toUpperCase()}`, margin + 3, curY + 4.8);
+  doc.text(`CHALLENGE: ${state.challengeTitle.toUpperCase()}`, margin + 65, curY + 4.8);
+  doc.text('STANDARD: >= 80% DAILY PASS', margin + 180, curY + 4.8);
+  doc.text('PEN: BLACK BALLPOINT ONLY', margin + contentWidth - 45, curY + 4.8);
+
+  curY += 9;
+
+  // =========================================================================
+  // 1. RAW COORDINATE MEASURING CHART (DAYS 1-90 vs 0-100%)
+  // =========================================================================
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(0, 0, 0);
+  doc.text('COORDINATE GRID 01: DAILY SCORE PERCENTAGE PLOTTING SYSTEM (DAYS 01 - 90)', margin, curY);
+
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(80, 80, 80);
+  doc.text('X-Axis: Days 01-90 | Y-Axis: Score 0-100% | Red Dashed Line: 80% Pass Benchmark', margin + 130, curY);
+
+  curY += 2.5;
+
+  const chartX = margin + 12;
+  const chartW = contentWidth - 14;
+  const chartH = isLandscape ? 58 : 68;
+  const chartY = curY + 5;
+
+  // Phase header tabs in chart
+  const p1W = (chartW * 30) / 90;
+  const p2W = (chartW * 30) / 90;
+  const p3W = (chartW * 30) / 90;
+
+  doc.setFillColor(240, 244, 250);
+  doc.rect(chartX, curY, p1W, 4.5, 'F');
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.2);
+  doc.rect(chartX, curY, p1W, 4.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.5);
+  doc.setTextColor(30, 58, 138);
+  doc.text('PHASE 1: THE FOUNDATION (DAYS 01-30)', chartX + 10, curY + 3.2);
+
+  doc.setFillColor(254, 252, 232);
+  doc.rect(chartX + p1W, curY, p2W, 4.5, 'F');
+  doc.rect(chartX + p1W, curY, p2W, 4.5);
+  doc.setTextColor(146, 64, 14);
+  doc.text('PHASE 2: THE CRUCIBLE (DAYS 31-60)', chartX + p1W + 12, curY + 3.2);
+
+  doc.setFillColor(242, 253, 225);
+  doc.rect(chartX + p1W + p2W, curY, p3W, 4.5, 'F');
+  doc.rect(chartX + p1W + p2W, curY, p3W, 4.5);
+  doc.setTextColor(20, 83, 45);
+  doc.text('PHASE 3: ASCENDANCE (DAYS 61-90)', chartX + p1W + p2W + 12, curY + 3.2);
+
+  curY = chartY;
+
+  // Chart outer bounding box
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.35);
+  doc.rect(chartX, chartY, chartW, chartH);
+
+  // Horizontal grid lines (0%, 20%, 40%, 60%, 80%, 100%)
+  const yTicks = [0, 20, 40, 60, 80, 100];
+  yTicks.forEach((yVal) => {
+    const yPos = chartY + chartH - (yVal / 100) * chartH;
+    const is80 = yVal === 80;
+
+    if (is80) {
+      doc.setDrawColor(220, 38, 38);
+      doc.setLineWidth(0.45);
+      doc.line(chartX, yPos, chartX + chartW, yPos);
+      doc.setTextColor(220, 38, 38);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.5);
+      doc.text('80% NON-NEGOTIABLE BENCHMARK [PASS ZONE >=80%]', chartX + chartW - 75, yPos - 1.2);
+    } else {
+      doc.setDrawColor(220, 220, 220);
+      doc.setLineWidth(0.15);
+      doc.line(chartX, yPos, chartX + chartW, yPos);
+    }
+
+    doc.setTextColor(is80 ? 220 : 100, is80 ? 38 : 100, is80 ? 38 : 100);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6);
+    doc.text(`${yVal}%`, chartX - 7, yPos + 1.8);
+  });
+
+  // Vertical milestone lines for Phase boundaries (Day 30 and Day 60)
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.3);
+  doc.line(chartX + p1W, chartY, chartX + p1W, chartY + chartH);
+  doc.line(chartX + p1W + p2W, chartY, chartX + p1W + p2W, chartY + chartH);
+
+  // Vertical Day Ticks every 5 days
+  for (let d = 1; d <= 90; d++) {
+    const xPos = chartX + ((d - 1) / 89) * chartW;
+    const isMajor = d === 1 || d % 5 === 0;
+
+    if (isMajor) {
+      doc.setDrawColor(200, 200, 200);
+      doc.setLineWidth(0.15);
+      doc.line(xPos, chartY, xPos, chartY + chartH);
+
+      doc.setDrawColor(0, 0, 0);
+      doc.setLineWidth(0.25);
+      doc.line(xPos, chartY + chartH, xPos, chartY + chartH + 1.8);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(5);
+      doc.setTextColor(0, 0, 0);
+      doc.text(`D${d.toString().padStart(2, '0')}`, xPos - 2.5, chartY + chartH + 4.5);
+    }
+
+    // Small guide marker at 80% line for easy pen plotting
+    doc.setFillColor(220, 38, 38);
+    doc.circle(xPos, chartY + chartH - 0.8 * chartH, 0.25, 'F');
+  }
+
+  // If printing with digital checks, draw current score trajectory
+  if (state.printStyle === 'with_digital_checks') {
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.5);
+    let prevX: number | null = null;
+    let prevY: number | null = null;
+
+    state.dayMatrix.forEach((dm) => {
+      if ((dm.scorePercent || 0) > 0) {
+        const ptX = chartX + ((dm.dayNumber - 1) / 89) * chartW;
+        const ptY = chartY + chartH - (dm.scorePercent / 100) * chartH;
+
+        if (prevX !== null && prevY !== null) {
+          doc.line(prevX, prevY, ptX, ptY);
+        }
+        doc.setFillColor(dm.scorePercent >= 80 ? 0 : 200, dm.scorePercent >= 80 ? 0 : 0, 0);
+        doc.circle(ptX, ptY, 0.6, 'F');
+
+        prevX = ptX;
+        prevY = ptY;
+      }
+    });
+  }
+
+  curY = chartY + chartH + 8;
+
+  // Manual Pen Plotting Protocol Strip
+  doc.setFillColor(248, 248, 245);
+  doc.rect(margin, curY, contentWidth, 5, 'F');
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.25);
+  doc.rect(margin, curY, contentWidth, 5);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6);
+  doc.setTextColor(0, 0, 0);
+  doc.text('PEN PLOTTING RULE:', margin + 2, curY + 3.5);
+  doc.setFont('helvetica', 'normal');
+  doc.text(
+    '1. Plot solid dot (•) at 21:00 nightly at Day/Score% intersection.  2. Connect dots with ruler.  3. Must remain >= 80% benchmark.',
+    margin + 30,
+    curY + 3.5
+  );
+
+  curY += 7.5;
+
+  // =========================================================================
+  // 2. 13-WEEK COMPLIANCE & BIOMETRIC MEASUREMENT LOG (TABLE 02)
+  // =========================================================================
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(0, 0, 0);
+  doc.text('TABLE 02: 13-WEEK RAW COMPLIANCE & BIOMETRIC MEASUREMENT LOG', margin, curY);
+
+  curY += 2.5;
+
+  // Render 13 weeks table headers
+  const tHeaders = [
+    { text: 'WEEK', w: 14 },
+    { text: 'DAYS SPAN', w: 24 },
+    { text: 'TARGET DAYS', w: 26 },
+    { text: 'ACTUAL MET', w: 26 },
+    { text: 'AVG SCORE %', w: 26 },
+    { text: 'BODYWEIGHT (KG/LB)', w: 46 },
+    { text: 'DEEP WORK (HRS)', w: 46 },
+    { text: '80% STATUS', w: 28 },
+    { text: 'INITIALS', w: contentWidth - (14 + 24 + 26 + 26 + 26 + 46 + 46 + 28) },
+  ];
+
+  doc.setFillColor(235, 235, 230);
+  doc.rect(margin, curY, contentWidth, 4.5, 'F');
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.25);
+  doc.rect(margin, curY, contentWidth, 4.5);
+
+  let thX = margin;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(5.5);
+  doc.setTextColor(0, 0, 0);
+  tHeaders.forEach((th) => {
+    doc.text(th.text, thX + 1.2, curY + 3.2);
+    thX += th.w;
+    if (thX < margin + contentWidth) {
+      doc.line(thX, curY, thX, curY + 4.5);
+    }
+  });
+
+  curY += 4.5;
+
+  const rowH = isLandscape ? 3.3 : 3.8;
+  const weeks = [
+    { w: 'W01', p: 'P1', d: 'Days 01-07', cnt: 7 },
+    { w: 'W02', p: 'P1', d: 'Days 08-14', cnt: 7 },
+    { w: 'W03', p: 'P1', d: 'Days 15-21', cnt: 7 },
+    { w: 'W04', p: 'P1', d: 'Days 22-28', cnt: 7 },
+    { w: 'W05', p: 'P1', d: 'Days 29-35', cnt: 7 },
+    { w: 'W06', p: 'P2', d: 'Days 36-42', cnt: 7 },
+    { w: 'W07', p: 'P2', d: 'Days 43-49', cnt: 7 },
+    { w: 'W08', p: 'P2', d: 'Days 50-56', cnt: 7 },
+    { w: 'W09', p: 'P2', d: 'Days 57-63', cnt: 7 },
+    { w: 'W10', p: 'P3', d: 'Days 64-70', cnt: 7 },
+    { w: 'W11', p: 'P3', d: 'Days 71-77', cnt: 7 },
+    { w: 'W12', p: 'P3', d: 'Days 78-84', cnt: 7 },
+    { w: 'W13', p: 'P3', d: 'Days 85-90', cnt: 6 },
+  ];
+
+  weeks.forEach((wk, i) => {
+    if (i % 2 === 1) {
+      doc.setFillColor(250, 250, 248);
+      doc.rect(margin, curY, contentWidth, rowH, 'F');
+    }
+
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.15);
+    doc.line(margin, curY + rowH, margin + contentWidth, curY + rowH);
+
+    let cellX = margin;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(5);
+    doc.setTextColor(0, 0, 0);
+    doc.text(`${wk.w} (${wk.p})`, cellX + 1.2, curY + rowH - 1.2);
+    cellX += 14;
+
+    doc.setFont('helvetica', 'normal');
+    doc.text(wk.d, cellX + 1.2, curY + rowH - 1.2);
+    cellX += 24;
+
+    doc.text(`>= ${wk.cnt === 7 ? '6 / 7' : '5 / 6'} Days`, cellX + 1.2, curY + rowH - 1.2);
+    cellX += 26;
+
+    doc.text(`[ ___ / ${wk.cnt} ]`, cellX + 1.2, curY + rowH - 1.2);
+    cellX += 26;
+
+    doc.text('[ _____ % ]', cellX + 1.2, curY + rowH - 1.2);
+    cellX += 26;
+
+    doc.text('______________________', cellX + 1.2, curY + rowH - 1.2);
+    cellX += 46;
+
+    doc.text('______________________', cellX + 1.2, curY + rowH - 1.2);
+    cellX += 46;
+
+    doc.text('[ ] MET   [ ] DEF', cellX + 1.2, curY + rowH - 1.2);
+    cellX += 28;
+
+    doc.text('_______', cellX + 1.2, curY + rowH - 1.2);
+
+    curY += rowH;
+  });
+
+  curY += 3;
+
+  // =========================================================================
+  // 3. FINAL 90-DAY ATTESTATION, ACCREDITATION & SIGNATURE BLOCK
+  // =========================================================================
+  const attestationH = pageHeight - margin - curY;
+  if (attestationH >= 18) {
+    doc.setFillColor(245, 245, 240);
+    doc.rect(margin, curY, contentWidth, attestationH, 'F');
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.4);
+    doc.rect(margin, curY, contentWidth, attestationH);
+
+    // Header inside attestation block
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.setTextColor(0, 0, 0);
+    doc.text('FINAL 90-DAY WINTER ARC ATTESTATION & ACCREDITATION SEAL', margin + 3, curY + 4.5);
+
+    // Left block: Scoring summary
+    doc.setFontSize(6.5);
+    doc.text('TOTAL DAYS >= 80%: [ _____ / 90 DAYS ]', margin + 3, curY + 9);
+    doc.text('CHALLENGE AVERAGE: [ _____ % ]', margin + 3, curY + 13.5);
+
+    // Middle block: Accreditation choice
+    const midAttX = margin + 85;
+    doc.rect(midAttX, curY + 7, 3, 3);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6);
+    doc.text('CERTIFIED WINTER ARC FINISHER (>=80% ADHERENCE MET)', midAttX + 4.5, curY + 9.5);
+
+    doc.rect(midAttX, curY + 11.5, 3, 3);
+    doc.setFont('helvetica', 'normal');
+    doc.text('CHALLENGE INCOMPLETE (<80% ADHERENCE DEFICIT)', midAttX + 4.5, curY + 14);
+
+    // Right block: Signatures
+    const sigX = margin + 195;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6);
+    doc.text('Athlete Signature: _________________________________', sigX, curY + 8);
+    doc.text('Accountability Witness: ___________________________', sigX, curY + 13);
+  }
+}
+
 
 // =========================================================================
 // RENDER HIGH-DPI A4 CANVAS FOR PNG DOWNLOAD (300 DPI)

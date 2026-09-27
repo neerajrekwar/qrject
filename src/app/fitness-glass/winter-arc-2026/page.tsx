@@ -38,9 +38,12 @@ import {
   calculateWinterArcAdherence,
   calculate90DayProgress,
   exportWinterArcToPDF,
+  exportWinterArcMeasuringSheetPDF,
   renderWinterArcToCanvas,
   exportWinterArcToCSV,
 } from '@/lib/winter-arc-engine';
+import { WinterArcProgressionChart } from '@/components/winter-arc/WinterArcProgressionChart';
+import { WinterArcMeasuringChartPrint } from '@/components/winter-arc/WinterArcMeasuringChartPrint';
 
 export type ManagementMode = 'digital_web' | 'print_paper';
 
@@ -234,6 +237,63 @@ export default function WinterArcPage() {
     showToast('Loaded demo passing protocol (13/16 slots, Day 1-14 passing)');
   };
 
+  // Populate realistic 90-Day athlete progression across Phase 1, Phase 2, and Phase 3
+  const handleLoadSampleTrajectory = () => {
+    setDayMatrix((prev) =>
+      prev.map((d) => {
+        let score = 0;
+        // Phase 1 (1-30): Foundation adaptation (fluctuating 72% - 88%)
+        if (d.phase === 1) {
+          score = Math.min(100, Math.round(72 + d.dayNumber * 0.45 + (d.dayNumber % 4) * 2.5));
+        } else if (d.phase === 2) {
+          // Phase 2 (31-60): The Crucible (84% - 93%)
+          const p2Day = d.dayNumber - 30;
+          score = Math.min(100, Math.round(84 + p2Day * 0.25 + (d.dayNumber % 3) * 2));
+        } else {
+          // Phase 3 (61-90): Ascendance (90% - 100%)
+          const p3Day = d.dayNumber - 60;
+          score = Math.min(100, Math.round(90 + p3Day * 0.3 + (d.dayNumber % 2) * 2));
+        }
+        return {
+          ...d,
+          scorePercent: score,
+          completed: score >= 80,
+          hoursCompliant: Math.round((score / 100) * slots24h.length),
+        };
+      })
+    );
+    showToast('Loaded 90-Day progression trajectory across Phase 1, 2, and 3');
+  };
+
+  // Reset 90-Day matrix to 0% clean slate
+  const handleClearMatrix = () => {
+    setDayMatrix((prev) =>
+      prev.map((d) => ({
+        ...d,
+        completed: false,
+        scorePercent: 0,
+        hoursCompliant: 0,
+      }))
+    );
+    showToast('Reset 90-Day Matrix to 0% clean slate');
+  };
+
+  // Update specific day score
+  const handleUpdateDayScore = (dayNumber: number, score: number) => {
+    setDayMatrix((prev) =>
+      prev.map((d) => {
+        if (d.dayNumber !== dayNumber) return d;
+        const clamped = Math.max(0, Math.min(100, Math.round(score)));
+        return {
+          ...d,
+          scorePercent: clamped,
+          completed: clamped >= 80,
+          hoursCompliant: Math.round((clamped / 100) * slots24h.length),
+        };
+      })
+    );
+  };
+
   // Mark all 24h active slots done
   const handleMarkAll24hDone = () => {
     setSlots24h((prev) => prev.map((s) => ({ ...s, completed: true })));
@@ -297,6 +357,25 @@ export default function WinterArcPage() {
     }
   };
 
+  const handleExportMeasuringSheetPDF = async () => {
+    setIsExporting(true);
+    try {
+      const blob = await exportWinterArcMeasuringSheetPDF(currentStateBundle);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Winter_Arc_2026_MEASURING_SHEET_${isLandscape ? 'LANDSCAPE' : 'PORTRAIT'}_A4.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('Exported Attached Measuring Sheet A4 PDF');
+    } catch (e) {
+      console.error(e);
+      showToast('Measuring Sheet PDF Export failed');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const handleExportPNG = async () => {
     setIsExporting(true);
     try {
@@ -346,6 +425,10 @@ export default function WinterArcPage() {
             background-color: #ffffff !important;
             color: #000000 !important;
             font-size: 11px !important;
+          }
+          .print-attached-measuring-page {
+            break-before: page !important;
+            page-break-before: always !important;
           }
         }
       `}</style>
@@ -1116,8 +1199,29 @@ export default function WinterArcPage() {
               </div>
             </div>
 
+            {/* INTEGRATED RECHARTS VISUALIZATION: 90-DAY PROGRESSION LINE CHART ACROSS ALL THREE PHASES */}
+            <WinterArcProgressionChart
+              dayMatrix={dayMatrix}
+              activePhaseFilter={selectedPhaseFilter}
+              onUpdateDayScore={handleUpdateDayScore}
+              onLoadSampleTrajectory={handleLoadSampleTrajectory}
+              onClearMatrix={handleClearMatrix}
+              current24hPercent={stats24h.percent}
+            />
+
             {/* 90-Day Interactive Matrix Grid (10 columns x 9 rows) */}
-            <div className="grid grid-cols-2 sm:grid-cols-5 md:grid-cols-10 gap-2 font-mono">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between font-mono text-xs border-b border-black pb-1">
+                <span className="font-black uppercase text-black flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-black" />
+                  <span>90-DAY COMPLIANCE MATRIX // CLICK ANY BOX TO TOGGLE DIGITAL TICK (80% THRESHOLD)</span>
+                </span>
+                <span className="text-[10px] text-zinc-500 font-bold hidden sm:inline">
+                  P1: DAYS 1-30 · P2: DAYS 31-60 · P3: DAYS 61-90
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-5 md:grid-cols-10 gap-2 font-mono">
               {filteredDays.map((day) => {
                 const isPassed = day.completed || day.scorePercent >= 80;
                 return (
@@ -1158,6 +1262,7 @@ export default function WinterArcPage() {
                   </div>
                 );
               })}
+              </div>
             </div>
 
             {/* Phase Milestones Breakdown Cards */}
