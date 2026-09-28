@@ -16,6 +16,7 @@ import {
   AlertCircle,
   Sparkles,
   RefreshCw,
+  Printer,
 } from 'lucide-react';
 import { EventCard } from '@/components/EventCard';
 import { QRStudio } from '@/components/QRStudio';
@@ -336,6 +337,37 @@ export function LiveArtifactModal({ isOpen, onClose }: LiveArtifactModalProps) {
                 <span className="font-bold">{Math.round((qrOptions.photoDotScale || 0.62) * 100)}%</span>
               </div>
             )}
+
+            {/* Photo QR DPI Glide Bar with Ideal Set */}
+            <div className="hidden sm:flex items-center gap-1.5 border border-black bg-[#fafaf8] px-2 py-0.5 font-mono text-[10px]">
+              <Printer className="w-3 h-3 text-black" />
+              <span>DPI GLIDE:</span>
+              <input
+                type="range"
+                min="72"
+                max="1200"
+                step="5"
+                value={qrOptions.dpi || 300}
+                onChange={(e) => setQrOptions((prev) => ({ ...prev, dpi: parseInt(e.target.value, 10) }))}
+                className="w-20 accent-black cursor-pointer"
+                title="Continuous DPI Resolution Glide Bar"
+              />
+              <span className={`font-black px-1 ${
+                (qrOptions.dpi || 300) === 300 ? 'bg-[#ccff00] text-black border border-black' : 'text-zinc-900'
+              }`}>
+                {qrOptions.dpi || 300} {(qrOptions.dpi || 300) === 300 ? '★ IDEAL' : 'DPI'}
+              </span>
+              {(qrOptions.dpi || 300) !== 300 && (
+                <button
+                  type="button"
+                  onClick={() => setQrOptions((prev) => ({ ...prev, dpi: 300 }))}
+                  className="border border-black bg-black hover:bg-[#ccff00] hover:text-black text-[#ccff00] px-1.5 py-0.2 text-[9px] font-black transition-colors cursor-pointer"
+                  title="Snap to 300 DPI Ideal Standard"
+                >
+                  SET IDEAL
+                </button>
+              )}
+            </div>
 
             <button
               onClick={() => {

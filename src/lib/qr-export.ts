@@ -19,12 +19,13 @@ export interface ExportResult {
 /**
  * Generates calibrated 300 DPI PNG with embedded pHYs metadata chunk
  */
-export async function generate300DpiPNG(options: QROptions, dpi: 300 | 600 = 300): Promise<ExportResult> {
-  const targetPx = dpi === 600 ? 4800 : 2400;
+export async function generate300DpiPNG(options: QROptions, dpi: number = options.dpi || 300): Promise<ExportResult> {
+  const targetPx = Math.round((dpi / 300) * 2400);
   const canvas = document.createElement('canvas');
 
   await renderQRToCanvas(canvas, {
     ...options,
+    dpi,
     targetSizePx: targetPx,
   });
 
@@ -201,13 +202,13 @@ export async function generate300DpiPDF(options: QROptions): Promise<ExportResul
 export async function exportQRCode(options: QROptions, format: ExportFormat): Promise<ExportResult> {
   switch (format) {
     case 'PNG':
-      return await generate300DpiPNG(options, 300);
+      return await generate300DpiPNG(options, options.dpi || 300);
     case 'SVG':
       return generate300DpiSVG(options);
     case 'PDF':
       return await generate300DpiPDF(options);
     default:
-      return await generate300DpiPNG(options, 300);
+      return await generate300DpiPNG(options, options.dpi || 300);
   }
 }
 

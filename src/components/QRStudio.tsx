@@ -37,6 +37,7 @@ import { PHOTO_PRESETS } from '@/lib/photo-presets';
 import { useSession } from 'next-auth/react';
 import { consumeToolQuota } from '@/lib/usage-limits';
 import { RAPID_PAYLOAD_TEMPLATES, PayloadTemplate } from '@/lib/payload-templates';
+import { DPIGlideBar } from './DPIGlideBar';
 
 interface QRStudioProps {
   options: QROptions;
@@ -211,17 +212,18 @@ export function QRStudio({ options, onOptionsChange, onCodeExported }: QRStudioP
     });
   };
 
-  const handleDownloadPNG = async (dpi: 72 | 300 | 600 = 300) => {
+  const handleDownloadPNG = async (dpi: number = options.dpi || 300) => {
     const allowed = await verifyQuota();
     if (!allowed) return;
 
     setIsExporting(true);
     try {
-      const targetPx = dpi === 72 ? 800 : dpi === 300 ? 2400 : 4800;
+      const targetPx = Math.round((dpi / 300) * 2400);
       const exportCanvas = document.createElement('canvas');
 
       await renderQRToCanvas(exportCanvas, {
         ...options,
+        dpi,
         targetSizePx: targetPx,
       });
 
@@ -231,7 +233,8 @@ export function QRStudio({ options, onOptionsChange, onCodeExported }: QRStudioP
         const url = URL.createObjectURL(dpiBlob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `PhotoQR-300DPI-Calibrated-${Date.now()}.png`;
+        const prefix = options.photoUrl ? 'PhotoQR' : 'QR';
+        a.download = `${prefix}-${dpi}DPI-Calibrated-${Date.now()}.png`;
         a.click();
         URL.revokeObjectURL(url);
         setIsExporting(false);
@@ -531,6 +534,28 @@ export function QRStudio({ options, onOptionsChange, onCodeExported }: QRStudioP
                     Monochrome B/W: {options.photoBWMode ? 'ACTIVE (21:1)' : 'COLOR'}
                   </button>
                 </div>
+
+                {/* PHOTO QR CODE DPI GLIDE BAR WITH IDEAL SET */}
+                <div className="pt-2 border-t border-slate-900">
+                  <DPIGlideBar
+                    dpi={options.dpi || 300}
+                    onChange={(newDpi) => handleUpdate({ dpi: newDpi })}
+                    variant="dark"
+                    label="PHOTO QR PRINT RESOLUTION (DPI)"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* If no photo is loaded yet, also show DPI Glide Bar so users can pre-calibrate */}
+            {!options.photoUrl && (
+              <div className="pt-2">
+                <DPIGlideBar
+                  dpi={options.dpi || 300}
+                  onChange={(newDpi) => handleUpdate({ dpi: newDpi })}
+                  variant="dark"
+                  label="PHOTO QR TARGET PRINT RESOLUTION (DPI)"
+                />
               </div>
             )}
           </div>
@@ -870,6 +895,41 @@ export function QRStudio({ options, onOptionsChange, onCodeExported }: QRStudioP
               <p className="text-xs text-slate-400 leading-relaxed">
                 Direct physical resolution injection (`pHYs` chunk at 11,811 ppm). Produces razor-sharp optical edges for paper, badges, posters, and signage with 100% camera readability.
               </p>
+            </div>
+
+            {/* Continuous DPI Glide Bar with Ideal Set */}
+            <DPIGlideBar
+              dpi={options.dpi || 300}
+              onChange={(newDpi) => handleUpdate({ dpi: newDpi })}
+              variant="dark"
+              label="CONTINUOUS DPI RESOLUTION GLIDE BAR"
+            />
+
+            {/* Custom DPI Quick Export Trigger */}
+            <div className="p-3.5 rounded-xl bg-gradient-to-r from-blue-950/40 via-indigo-950/40 to-slate-950 border border-cyan-500/30 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div>
+                <div className="text-xs font-bold text-white flex items-center gap-1.5 font-mono">
+                  <span>SELECTED PHYSICAL OUTPUT:</span>
+                  <span className="text-cyan-300 font-black text-sm">{options.dpi || 300} DPI</span>
+                  {(options.dpi || 300) === 300 && (
+                    <span className="text-[10px] bg-[#ccff00] text-black font-bold px-1.5 py-0.2 rounded-xs">
+                      ★ IDEAL
+                    </span>
+                  )}
+                </div>
+                <div className="text-[11px] text-slate-400 font-mono">
+                  Generates {Math.round(((options.dpi || 300) / 300) * 2400)} × {Math.round(((options.dpi || 300) / 300) * 2400)} px image with embedded pHYs chunk ({Math.round((options.dpi || 300) * 39.3701).toLocaleString()} ppm)
+                </div>
+              </div>
+
+              <button
+                onClick={() => handleDownloadPNG(options.dpi || 300)}
+                disabled={isExporting}
+                className="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:opacity-90 text-black font-mono font-black text-xs rounded-lg shadow-md transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5 shrink-0"
+              >
+                <Download className="w-3.5 h-3.5 text-black" />
+                <span>{isExporting ? 'EXPORTING...' : `EXPORT ${options.dpi || 300} DPI PNG`}</span>
+              </button>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">

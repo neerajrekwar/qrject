@@ -26,6 +26,7 @@ import { UsageBanner } from '@/components/auth/UsageBanner';
 import { useSession } from 'next-auth/react';
 import { consumeToolQuota } from '@/lib/usage-limits';
 import { QuotaLimitModal } from '@/components/auth/QuotaLimitModal';
+import { DPIGlideBar } from '@/components/DPIGlideBar';
 
 const PRINT_SIZES = [
   { label: '4" × 6" Postcard', w: 4, h: 6, desc: '1200×1800 px @ 300 DPI' },
@@ -497,36 +498,13 @@ export default function NormalDPIPhotoPage() {
               {activeTab === 'dpi' && (
                 <div className="space-y-5 animate-fadeIn">
                   
-                  {/* DPI Selector */}
-                  <div className="space-y-2">
-                    <span className="font-mono text-[11px] font-black uppercase text-zinc-700 block">
-                      TARGET PHYSICAL PRINT RESOLUTION:
-                    </span>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {[
-                        { dpi: 300, name: '300 DPI Standard', desc: 'Commercial Press / RIP' },
-                        { dpi: 600, name: '600 DPI Ultra', desc: 'Fine Art / Archival' },
-                        { dpi: 150, name: '150 DPI Draft', desc: 'Screen Print / Newsprint' },
-                        { dpi: 72, name: '72 DPI Web', desc: 'Screen Preview Only' },
-                      ].map((d) => {
-                        const isSelected = options.dpi === d.dpi;
-                        return (
-                          <button
-                            key={d.dpi}
-                            onClick={() => handleUpdate({ dpi: d.dpi as PhotoDPIOptions['dpi'] })}
-                            className={`p-2.5 border-2 border-black text-left font-mono transition-all cursor-pointer ${
-                              isSelected
-                                ? 'bg-black text-[#ccff00] shadow-[2px_2px_0px_#000000]'
-                                : 'bg-white text-black hover:bg-zinc-100'
-                            }`}
-                          >
-                            <div className="font-black text-sm">{d.dpi} DPI</div>
-                            <div className="text-[10px] opacity-75 mt-0.5">{d.desc}</div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
+                  {/* DPI Selector & Glide Bar with Ideal Set */}
+                  <DPIGlideBar
+                    dpi={options.dpi || 300}
+                    onChange={(newDpi) => handleUpdate({ dpi: newDpi })}
+                    variant="brutalist"
+                    label="PHOTO PRINT RESOLUTION (DPI) GLIDE CONTROL"
+                  />
 
                   {/* Physical Print Dimensions */}
                   <div className="space-y-2">

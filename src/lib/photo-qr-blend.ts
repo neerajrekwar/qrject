@@ -12,6 +12,7 @@ export interface PhotoQRBlendOptions {
   monochrome?: boolean;       // default: true (300 DPI high-contrast B/W standard)
   invert?: boolean;           // default: false
   targetSizePx?: number;      // default: 1000px
+  dpi?: number;               // default: 300 DPI (ideal print standard)
   foregroundColor?: string;   // default: #000000
   backgroundColor?: string;   // default: #ffffff
   dotShape?: DotShape;        // default: 'square'

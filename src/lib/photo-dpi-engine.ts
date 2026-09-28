@@ -9,7 +9,7 @@ export type BWToneMode =
   | 'hard-threshold';
 
 export interface PhotoDPIOptions {
-  dpi: 72 | 150 | 300 | 600;
+  dpi: number;
   toneMode: BWToneMode;
   contrast: number;      // 0.5 to 3.0 (default: 1.4)
   brightness: number;    // 0.5 to 2.0 (default: 1.0)

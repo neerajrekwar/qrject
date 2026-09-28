@@ -39,7 +39,7 @@ export interface QROptions {
   logoBackground?: string;
   logoShape?: 'circle' | 'square' | 'rounded';
   // High contrast & DPI
-  dpi?: 72 | 300 | 600;
+  dpi?: number;
   targetSizePx?: number;
 }
 

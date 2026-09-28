@@ -37,6 +37,7 @@ import {
 import { PHOTO_PRESETS, PhotoPreset } from '@/lib/photo-presets';
 import { exportQRCode, triggerDownload, ExportFormat } from '@/lib/qr-export';
 import { addQRToHistory } from '@/lib/qr-history';
+import { DPIGlideBar } from '@/components/DPIGlideBar';
 
 interface HeroSectionProps {
   onExploreProjects?: () => void;
@@ -131,7 +132,7 @@ export function HeroSection({
     targetSizePx: 1000,
   });
 
-  const [activeTab, setActiveTab] = useState<'photo' | 'content' | 'shapes' | 'export'>('photo');
+  const [activeTab, setActiveTab] = useState<'photo' | 'dpi' | 'content' | 'shapes' | 'export'>('photo');
   const [selectedPresetId, setSelectedPresetId] = useState<string>('bw-portrait-photo');
   const [customPhotoName, setCustomPhotoName] = useState<string>('B/W Portrait Photograph');
   const [selectedFormat, setSelectedFormat] = useState<ExportFormat>('PNG');
@@ -259,18 +260,19 @@ export function HeroSection({
     showToast('Reverted to standard geometric QR code');
   };
 
-  // Direct 300 DPI Export (PNG, SVG, PDF)
+  // Direct High-Resolution Export (PNG, SVG, PDF)
   const handleExport = async (format: ExportFormat = selectedFormat) => {
     setIsExporting(true);
     try {
-      const result = await exportQRCode(options, format);
+      const currentDpi = options.dpi || 300;
+      const result = await exportQRCode({ ...options, dpi: currentDpi }, format);
       triggerDownload(result);
       await addQRToHistory(
-        options,
-        `${format === 'SVG' ? 'Vector' : '300 DPI'} ${format}`,
+        { ...options, dpi: currentDpi },
+        `${format === 'SVG' ? 'Vector' : `${currentDpi} DPI`} ${format}`,
         options.text.slice(0, 32)
       );
-      showToast(`Downloaded ${format} at 300 DPI`);
+      showToast(`Downloaded ${format} at ${currentDpi} DPI`);
     } catch (err) {
       console.error('Export error:', err);
       showToast('Export failed. Check console.');
@@ -308,7 +310,7 @@ export function HeroSection({
 
             <div className="flex items-center gap-2 font-mono text-xs">
               <span className="border-2 border-black bg-[#ccff00] text-black px-2.5 py-1 font-black shadow-[2px_2px_0px_#000000]">
-                300 DPI CALIBRATED
+                {options.dpi || 300} DPI {(options.dpi || 300) === 300 ? '★ IDEAL' : 'CALIBRATED'}
               </span>
               <span className="border-2 border-black bg-black text-[#ccff00] px-2.5 py-1 font-black shadow-[2px_2px_0px_#000000]">
                 HIGH-CONTRAST B/W
@@ -343,9 +345,10 @@ export function HeroSection({
               <div className="flex items-center gap-1.5 border-2 border-black bg-[#fafaf8] p-1.5 shadow-[3px_3px_0px_#000000] overflow-x-auto">
                 {[
                   { id: 'photo', label: 'PHOTO QR ENGINE', icon: ImageIcon },
+                  { id: 'dpi', label: 'DPI GLIDE BAR', icon: Printer },
                   { id: 'content', label: 'PAYLOAD', icon: Scan },
                   { id: 'shapes', label: 'B/W GEOMETRY', icon: Sliders },
-                  { id: 'export', label: '300 DPI EXPORT', icon: Download },
+                  { id: 'export', label: 'HIGH-RES EXPORT', icon: Download },
                 ].map((tab) => {
                   const Icon = tab.icon;
                   const isActive = activeTab === tab.id;
@@ -566,6 +569,41 @@ export function HeroSection({
                     </div>
                   )}
 
+                  {/* Photo QR DPI Glide Bar with Ideal Set */}
+                  <DPIGlideBar
+                    dpi={options.dpi || 300}
+                    onChange={(newDpi) => handleUpdate({ dpi: newDpi })}
+                    variant="brutalist"
+                    label="PHOTO QR CODE PRINT RESOLUTION (DPI)"
+                  />
+
+                </div>
+              )}
+
+              {/* TAB 2: DEDICATED DPI RESOLUTION GLIDE BAR */}
+              {activeTab === 'dpi' && (
+                <div className="mt-5 space-y-4 animate-fadeIn">
+                  <DPIGlideBar
+                    dpi={options.dpi || 300}
+                    onChange={(newDpi) => handleUpdate({ dpi: newDpi })}
+                    variant="brutalist"
+                    label="CONTINUOUS DPI RESOLUTION GLIDE BAR"
+                  />
+
+                  <div className="border-2 border-black bg-[#fafaf8] p-4 space-y-2 shadow-[2px_2px_0px_#000000]">
+                    <span className="font-mono text-xs font-black uppercase text-black block">
+                      PRINT RESOLUTION & OPTICAL DENSITY GUIDE
+                    </span>
+                    <p className="font-mono text-[11px] text-zinc-700 leading-relaxed">
+                      QRject Studio injects physical density metadata directly into the PNG header (pHYs chunk) and rasterizes at precision resolutions:
+                    </p>
+                    <ul className="font-mono text-[11px] text-zinc-800 space-y-1 list-disc pl-4">
+                      <li><strong>72 DPI</strong>: Instant digital preview, low bandwidth screen display.</li>
+                      <li><strong>150 DPI</strong>: Draft printing, thermal receipts, newspaper newsprint.</li>
+                      <li><strong>300 DPI (★ IDEAL)</strong>: International commercial print standard, badges, flyers, 100% camera barcode decode rate.</li>
+                      <li><strong>600+ DPI</strong>: Fine art gallery lithography, archival museum prints, micro-etched metal plates.</li>
+                    </ul>
+                  </div>
                 </div>
               )}
 
@@ -698,14 +736,22 @@ export function HeroSection({
                 </div>
               )}
 
-              {/* TAB 4: 300 DPI EXPORT SETTINGS */}
+              {/* TAB 5: HIGH-RES EXPORT SETTINGS */}
               {activeTab === 'export' && (
                 <div className="mt-5 space-y-4 animate-fadeIn">
                   
+                  {/* Integrated DPI Glide Bar with Ideal Set */}
+                  <DPIGlideBar
+                    dpi={options.dpi || 300}
+                    onChange={(newDpi) => handleUpdate({ dpi: newDpi })}
+                    variant="brutalist"
+                    label="OUTPUT PRINT RESOLUTION (DPI)"
+                  />
+
                   <div className="border-2 border-black bg-[#fafaf8] p-4 space-y-3 shadow-[3px_3px_0px_#000000]">
                     <div className="flex items-center justify-between border-b border-zinc-300 pb-2">
                       <span className="font-mono text-xs font-black uppercase text-black">
-                        CHOOSE 300 DPI OUTPUT FORMAT
+                        CHOOSE {options.dpi || 300} DPI OUTPUT FORMAT
                       </span>
                       <span className="font-mono text-[10px] bg-black text-[#ccff00] px-1.5 py-0.5 font-bold">
                         PRINT READY
@@ -727,7 +773,7 @@ export function HeroSection({
                           >
                             <div className="font-black text-sm">{fmt}</div>
                             <div className="text-[10px] opacity-75 mt-0.5">
-                              {fmt === 'PNG' ? '300 DPI RASTER' : fmt === 'SVG' ? 'VECTOR PATHS' : 'SPECIMEN SHEET'}
+                              {fmt === 'PNG' ? `${options.dpi || 300} DPI RASTER` : fmt === 'SVG' ? 'VECTOR PATHS' : 'SPECIMEN SHEET'}
                             </div>
                           </button>
                         );
@@ -737,7 +783,7 @@ export function HeroSection({
                     <div className="font-mono text-[11px] text-zinc-700 bg-white p-2.5 border border-black">
                       {selectedFormat === 'PNG' && (
                         <span>
-                          <strong>300 DPI PNG:</strong> Renders 2400×2400 px with embedded pHYs binary chunk (11,811 pixels per meter) preserving high-contrast photographic halftone detail.
+                          <strong>{options.dpi || 300} DPI PNG:</strong> Renders {Math.round(((options.dpi || 300) / 300) * 2400)}×{Math.round(((options.dpi || 300) / 300) * 2400)} px with embedded pHYs binary chunk ({Math.round((options.dpi || 300) * 39.3701).toLocaleString()} pixels/meter) preserving high-contrast photographic halftone detail.
                         </span>
                       )}
                       {selectedFormat === 'SVG' && (
@@ -759,7 +805,7 @@ export function HeroSection({
                     className="w-full py-3.5 border-2 border-black bg-[#ccff00] hover:bg-black hover:text-[#ccff00] font-mono text-xs font-black tracking-widest text-black shadow-[4px_4px_0px_#000000] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all cursor-pointer flex items-center justify-center gap-2"
                   >
                     <Download className="w-4 h-4" />
-                    <span>{isExporting ? 'GENERATING 300 DPI FILE...' : `EXPORT PHOTO QR AS ${selectedFormat} (300 DPI)`}</span>
+                    <span>{isExporting ? `GENERATING ${options.dpi || 300} DPI FILE...` : `EXPORT PHOTO QR AS ${selectedFormat} (${options.dpi || 300} DPI)`}</span>
                   </button>
 
                 </div>
@@ -893,7 +939,9 @@ export function HeroSection({
             <div className="w-full grid grid-cols-3 gap-2 font-mono text-center">
               <div className="border-2 border-black bg-white p-2 shadow-[2px_2px_0px_#000000]">
                 <div className="text-[9px] text-zinc-500 font-bold uppercase">OUTPUT RES</div>
-                <div className="text-xs font-black text-black mt-0.5">300 DPI</div>
+                <div className="text-xs font-black text-black mt-0.5">
+                  {options.dpi || 300} DPI {(options.dpi || 300) === 300 ? '★' : ''}
+                </div>
               </div>
               <div className="border-2 border-black bg-white p-2 shadow-[2px_2px_0px_#000000]">
                 <div className="text-[9px] text-zinc-500 font-bold uppercase">MODE</div>
@@ -915,7 +963,7 @@ export function HeroSection({
                 className="w-full py-3 border-2 border-black bg-black text-white hover:bg-[#ccff00] hover:text-black font-mono text-xs font-black tracking-widest uppercase shadow-[4px_4px_0px_#000000] hover:translate-x-[1px] hover:translate-y-[1px] active:shadow-none transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 <Download className="w-4 h-4" />
-                <span>{isExporting ? 'EXPORTING...' : `DOWNLOAD PHOTO QR (${selectedFormat} 300 DPI)`}</span>
+                <span>{isExporting ? 'EXPORTING...' : `DOWNLOAD PHOTO QR (${selectedFormat} ${options.dpi || 300} DPI)`}</span>
               </button>
 
               <div className="grid grid-cols-2 gap-2 font-mono text-xs">
@@ -924,7 +972,7 @@ export function HeroSection({
                   className="py-2 border-2 border-black bg-white hover:bg-zinc-100 font-bold text-black transition-colors cursor-pointer flex items-center justify-center gap-1 shadow-[2px_2px_0px_#000000]"
                 >
                   <FileText className="w-3.5 h-3.5" />
-                  <span>{selectedFormat === 'PNG' ? 'PDF Specimen' : 'PNG 300 DPI'}</span>
+                  <span>{selectedFormat === 'PNG' ? 'PDF Specimen' : `PNG ${options.dpi || 300} DPI`}</span>
                 </button>
 
                 <button
