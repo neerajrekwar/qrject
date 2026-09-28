@@ -63,7 +63,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       setOccupation((session.user as any).occupation || '');
       setPlan((session.user as any).plan || 'free');
 
-      // Also fetch latest from MongoDB API
+      // Also fetch latest from MongoDB API h
       fetch(`/api/auth/profile?email=${encodeURIComponent(session.user.email || '')}`)
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
