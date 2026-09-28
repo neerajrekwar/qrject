@@ -12,7 +12,7 @@ interface NavbarProps {
 export function Navbar({ onOpenContact, onOpenQRArtifact }: NavbarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const navLinks = [
+  const navLinks: any[] = [
     // { label: 'ABOUT', href: '#about' },
     // { label: 'PROJECTS', href: '#projects' },
     // { label: 'REGISTRY', href: '#registry' },
