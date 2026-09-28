@@ -30,6 +30,12 @@ import {
   Search,
   ExternalLink,
   ShieldAlert,
+  Box,
+  ArrowDown,
+  HelpCircle,
+  Shield,
+  Database,
+  Hash,
 } from 'lucide-react';
 import {
   decodeQRWithDiagnostics,
@@ -39,6 +45,8 @@ import {
   generateTestQRCodeDataUrl,
   DecodeAnalysisResult,
   calculateShannonEntropy,
+  dissectEncryptedPayload,
+  DissectedPayload,
 } from '@/lib/qr-crush-analyzer';
 
 const SAMPLE_SPECIMENS = [
@@ -99,10 +107,13 @@ const SAMPLE_SPECIMENS = [
 ];
 
 export default function QRCrushSecretPage() {
-  const [activeTab, setActiveTab] = useState<'decoder' | 'technology' | 'crypto-lab' | 'generation-method'>('decoder');
+  const [activeTab, setActiveTab] = useState<
+    'decoder' | 'payload-intel' | 'technology' | 'crypto-lab' | 'generation-method'
+  >('decoder');
   const [currentImageSrc, setCurrentImageSrc] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [analysisResult, setAnalysisResult] = useState<DecodeAnalysisResult | null>(null);
+  const [dissectInput, setDissectInput] = useState<string>('');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -166,11 +177,11 @@ export default function QRCrushSecretPage() {
       const result = await decodeQRWithDiagnostics(canvas);
       setAnalysisResult(result);
 
-      if (result.success && result.security?.payloadType === 'ENCRYPTED_PAYLOAD') {
-        setDecryptInputPayload(result.rawPayload);
-      }
-
       if (result.success) {
+        setDissectInput(result.rawPayload);
+        if (result.security?.payloadType === 'ENCRYPTED_PAYLOAD') {
+          setDecryptInputPayload(result.rawPayload);
+        }
         showToast(`Decoded via ${result.passUsed.toUpperCase()} pass (${result.decodeTimeMs}ms)`);
       } else {
         showToast('Scanning failed: No readable QR patterns found');
@@ -294,6 +305,7 @@ export default function QRCrushSecretPage() {
     setIsAnalyzing(true);
     try {
       const payload = await specimen.generatePayload();
+      setDissectInput(payload);
       const qrDataUrl = await generateTestQRCodeDataUrl(payload, 'H');
       await executeAnalysisOnImage(qrDataUrl);
       showToast(`Loaded Specimen: ${specimen.title}`);
@@ -316,6 +328,7 @@ export default function QRCrushSecretPage() {
     try {
       const encrypted = await encryptPayloadAESGCM(cryptoInputText, cryptoPassphrase);
       setEncryptedOutput(encrypted);
+      setDissectInput(encrypted);
       const dataUrl = await generateTestQRCodeDataUrl(encrypted, 'H');
       setEncryptedQRDataUrl(dataUrl);
       showToast('Payload encrypted with AES-GCM 256-Bit!');
@@ -422,9 +435,10 @@ export default function QRCrushSecretPage() {
           <div className="flex items-center gap-1 bg-zinc-950 border border-zinc-800 p-1 font-mono text-xs overflow-x-auto">
             {[
               { id: 'decoder', label: '1. OPTICAL DECODER', icon: Search },
-              { id: 'technology', label: '2. PATTERN TECHNOLOGY', icon: Layers },
-              { id: 'crypto-lab', label: '3. ENCRYPTION LAB', icon: Lock },
-              { id: 'generation-method', label: '4. HOW QRs ARE BUILT', icon: FileCode },
+              { id: 'payload-intel', label: '2. WHAT IS PAYLOAD IN ENCRYPTION?', icon: Box },
+              { id: 'technology', label: '3. PATTERN TECHNOLOGY', icon: Layers },
+              { id: 'crypto-lab', label: '4. ENCRYPTION LAB', icon: Lock },
+              { id: 'generation-method', label: '5. HOW QRs ARE BUILT', icon: FileCode },
             ].map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -709,6 +723,18 @@ export default function QRCrushSecretPage() {
                             </div>
                           )}
                         </div>
+
+                        {/* Direct Bridge to Payload Anatomy */}
+                        <button
+                          onClick={() => {
+                            setDissectInput(analysisResult.rawPayload);
+                            setActiveTab('payload-intel');
+                          }}
+                          className="w-full py-2.5 bg-gradient-to-r from-purple-950 via-zinc-900 to-zinc-950 border border-purple-500/50 hover:border-[#ccff00] text-purple-300 hover:text-[#ccff00] font-mono text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm"
+                        >
+                          <Box className="w-4 h-4 text-[#ccff00]" />
+                          <span>WHAT IS THIS PAYLOAD? INSPECT ENCRYPTED ANATOMY →</span>
+                        </button>
                       </div>
                     )}
                   </>
@@ -738,7 +764,377 @@ export default function QRCrushSecretPage() {
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 2: PATTERN TECHNOLOGY & GEOMETRY DIAGNOSTICS */}
+        {/* TAB 2: WHAT IS A PAYLOAD IN ENCRYPTION? */}
+        {/* ========================================================================= */}
+        {activeTab === 'payload-intel' && (() => {
+          const dissection = dissectEncryptedPayload(dissectInput || analysisResult?.rawPayload || '');
+          const isEnc = dissection.isEncrypted;
+
+          return (
+            <div className="space-y-6 font-mono text-xs animate-fadeIn">
+              
+              {/* Executive Header Banner */}
+              <div className="border border-zinc-800 bg-zinc-950 p-5 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800 pb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 bg-[#ccff00] border border-black animate-pulse" />
+                    <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-1.5">
+                      <Box className="w-4 h-4 text-[#ccff00]" />
+                      <span>WHAT IS A &quot;PAYLOAD&quot; IN ENCRYPTION? // ARCHITECTURAL DOSSIER</span>
+                    </h3>
+                  </div>
+                  <span className="bg-[#ccff00] text-black font-black text-[10px] px-2 py-0.5 uppercase">
+                    CARGO VS PACKAGING
+                  </span>
+                </div>
+
+                <p className="text-zinc-300 text-xs sm:text-sm leading-relaxed">
+                  In computing and network protocols, the <strong>Payload</strong> is the essential, sensitive body of data being transported — the actual <em>&quot;cargo&quot;</em>. Everything else (headers, wrappers, parity codewords, finder patterns) is merely packaging.
+                </p>
+                <p className="text-zinc-400 text-[11px] leading-relaxed">
+                  In a <strong>Plaintext QR Code</strong>, the payload is naked: any smartphone camera reads raw URLs, passwords, or dossiers instantly from 10 feet away. In an <strong>Encrypted QR Code</strong>, the payload is passed through a military-grade symmetric cipher (such as <strong>AES-GCM 256-bit</strong>), transforming the cargo into cryptographically random ciphertext that cannot be viewed, altered, or forged without the secret key.
+                </p>
+              </div>
+
+              {/* Interactive Live Payload Dissector & Memory Map */}
+              <div className="border border-zinc-800 bg-zinc-950 p-5 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-800 pb-2">
+                  <div>
+                    <span className="text-sm font-bold text-white uppercase flex items-center gap-1.5">
+                      <Binary className="w-4 h-4 text-[#ccff00]" />
+                      <span>LIVE PAYLOAD ANATOMY &amp; MEMORY DISSECTOR</span>
+                    </span>
+                    <span className="text-[10px] text-zinc-400 block">
+                      Edit or paste any payload below to dissect its cryptographic layers in real time
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <button
+                      onClick={async () => {
+                        const encrypted = await SAMPLE_SPECIMENS[0].generatePayload();
+                        setDissectInput(encrypted);
+                        showToast('Loaded AES Encrypted Payload');
+                      }}
+                      className="px-2 py-1 bg-zinc-900 hover:bg-zinc-800 border border-purple-500/50 text-purple-300 text-[10px] font-bold transition-colors cursor-pointer"
+                    >
+                      [Sample AES Payload]
+                    </button>
+                    <button
+                      onClick={() => {
+                        setDissectInput('https://qrject.dev/secure/portal?token=nr817-architect');
+                        showToast('Loaded Plaintext URL');
+                      }}
+                      className="px-2 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 text-[10px] font-bold transition-colors cursor-pointer"
+                    >
+                      [Plain URL]
+                    </button>
+                    <button
+                      onClick={() => {
+                        setDissectInput('WIFI:T:WPA;S:HQ_VAULT_5G;P:Ultr@S3cur3P@ssw0rd!;;');
+                        showToast('Loaded Plaintext Wi-Fi');
+                      }}
+                      className="px-2 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 text-[10px] font-bold transition-colors cursor-pointer"
+                    >
+                      [Wi-Fi Key]
+                    </button>
+                  </div>
+                </div>
+
+                {/* Live Input Box */}
+                <div>
+                  <label className="text-[11px] text-zinc-400 block mb-1">
+                    CURRENT TARGET PAYLOAD IN MEMORY:
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={dissectInput}
+                    onChange={(e) => setDissectInput(e.target.value)}
+                    placeholder="Paste or type any payload to deconstruct..."
+                    className="w-full p-3 bg-black border border-zinc-800 text-[#ccff00] font-mono text-xs focus:border-[#ccff00] outline-none resize-y selection:bg-white selection:text-black"
+                  />
+                </div>
+
+                {/* Color-Coded Memory Ribbon Breakdown */}
+                {isEnc ? (
+                  <div className="space-y-3 pt-2">
+                    <span className="text-[11px] text-zinc-400 font-bold block">
+                      DECONSTRUCTED MEMORY ALLOCATION (AEAD ENVELOPE):
+                    </span>
+
+                    {/* Visual Segment Strip */}
+                    <div className="flex flex-wrap sm:flex-nowrap gap-1 p-1 bg-black border border-zinc-800 rounded text-center text-[10px] font-bold">
+                      <div className="py-2 px-2.5 bg-yellow-400/20 text-yellow-300 border border-yellow-400/40 rounded shrink-0">
+                        <div>PREFIX (8B)</div>
+                        <div className="text-[8px] opacity-75">{dissection.prefix}</div>
+                      </div>
+                      <div className="py-2 px-2.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded shrink-0">
+                        <div>SALT (16B)</div>
+                        <div className="text-[8px] opacity-75">128-bit PBKDF2</div>
+                      </div>
+                      <div className="py-2 px-2.5 bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 rounded shrink-0">
+                        <div>IV / NONCE (12B)</div>
+                        <div className="text-[8px] opacity-75">96-bit AES-GCM</div>
+                      </div>
+                      <div className="py-2 px-3 bg-purple-500/20 text-purple-300 border border-purple-500/40 rounded flex-1">
+                        <div>CIPHERTEXT BODY ({dissection.ciphertextBytes}B)</div>
+                        <div className="text-[8px] opacity-75">Encrypted Payload Cargo</div>
+                      </div>
+                      <div className="py-2 px-2.5 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded shrink-0">
+                        <div>AUTH TAG (16B)</div>
+                        <div className="text-[8px] opacity-75">128-bit GMAC</div>
+                      </div>
+                    </div>
+
+                    {/* Detailed Metric Strip */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px]">
+                      <div className="p-2.5 bg-zinc-900 border border-zinc-800">
+                        <span className="text-zinc-500 block">TOTAL PAYLOAD BYTES</span>
+                        <span className="text-white font-black text-sm">{dissection.totalBytes} Bytes</span>
+                        <span className="text-[9px] text-zinc-400 block mt-0.5">({dissection.totalLengthChars} base64 chars)</span>
+                      </div>
+                      <div className="p-2.5 bg-zinc-900 border border-zinc-800">
+                        <span className="text-zinc-500 block">ENCRYPTION OVERHEAD</span>
+                        <span className="text-cyan-300 font-black text-sm">+{dissection.cryptoOverheadBytes} Bytes</span>
+                        <span className="text-[9px] text-zinc-400 block mt-0.5">Salt (16) + IV (12) + Tag (16)</span>
+                      </div>
+                      <div className="p-2.5 bg-zinc-900 border border-zinc-800">
+                        <span className="text-zinc-500 block">SHANNON ENTROPY</span>
+                        <span className="text-[#ccff00] font-black text-sm">{dissection.entropy.toFixed(2)} bits/char</span>
+                        <span className="text-[9px] text-emerald-400 block mt-0.5">Maximum Cryptographic Uniformity</span>
+                      </div>
+                      <div className="p-2.5 bg-zinc-900 border border-zinc-800">
+                        <span className="text-zinc-500 block">CIPHER FAMILY</span>
+                        <span className="text-purple-300 font-black text-sm">AES-GCM 256</span>
+                        <span className="text-[9px] text-zinc-400 block mt-0.5">Authenticated AEAD</span>
+                      </div>
+                    </div>
+
+                    {/* Byte-by-Byte Component Inspection Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                      
+                      {/* Salt Card */}
+                      <div className="p-3 bg-zinc-900 border border-emerald-500/40 rounded space-y-1">
+                        <div className="flex items-center justify-between text-emerald-300 font-bold">
+                          <span>1. CRYPTOGRAPHIC SALT (16 BYTES / 128 BITS)</span>
+                          <span className="text-[9px] bg-black px-1.5 py-0.2 rounded border border-emerald-700">ANTI-RAINBOW</span>
+                        </div>
+                        <p className="text-zinc-300 text-[11px] leading-relaxed">
+                          Random noise generated via <code>crypto.getRandomValues(16)</code>. It ensures that if two users encrypt the same word with the same passphrase, they derive completely different keys, defeating rainbow-table and dictionary precomputation attacks.
+                        </p>
+                        <div className="p-2 bg-black text-[10px] text-emerald-400 font-mono break-all rounded border border-zinc-800">
+                          Hex: {dissection.saltHex}
+                        </div>
+                      </div>
+
+                      {/* IV / Nonce Card */}
+                      <div className="p-3 bg-zinc-900 border border-cyan-500/40 rounded space-y-1">
+                        <div className="flex items-center justify-between text-cyan-300 font-bold">
+                          <span>2. INITIALIZATION VECTOR / IV (12 BYTES / 96 BITS)</span>
+                          <span className="text-[9px] bg-black px-1.5 py-0.2 rounded border border-cyan-700">IND-CPA</span>
+                        </div>
+                        <p className="text-zinc-300 text-[11px] leading-relaxed">
+                          A fresh vector used only once per encryption run. Ensures <strong>Semantic Security</strong>: encrypting the same text twice generates completely different QR matrix patterns every time, preventing correlation attacks.
+                        </p>
+                        <div className="p-2 bg-black text-[10px] text-cyan-400 font-mono break-all rounded border border-zinc-800">
+                          Hex: {dissection.ivHex}
+                        </div>
+                      </div>
+
+                      {/* Ciphertext Body Card */}
+                      <div className="p-3 bg-zinc-900 border border-purple-500/40 rounded space-y-1">
+                        <div className="flex items-center justify-between text-purple-300 font-bold">
+                          <span>3. CIPHERTEXT BODY ({dissection.ciphertextBytes} BYTES)</span>
+                          <span className="text-[9px] bg-black px-1.5 py-0.2 rounded border border-purple-700">SCRAMBLED CARGO</span>
+                        </div>
+                        <p className="text-zinc-300 text-[11px] leading-relaxed">
+                          The actual payload after 14 rounds of AES-256 substitution-permutation diffusion. Every byte is pseudo-random with uniform distribution, eliminating all English grammar or URL patterns.
+                        </p>
+                        <div className="p-2 bg-black text-[10px] text-purple-300 font-mono break-all rounded border border-zinc-800">
+                          Hex Sample: {dissection.ciphertextHex}
+                        </div>
+                      </div>
+
+                      {/* Auth Tag Card */}
+                      <div className="p-3 bg-zinc-900 border border-amber-500/40 rounded space-y-1">
+                        <div className="flex items-center justify-between text-amber-300 font-bold">
+                          <span>4. GALOIS AUTHENTICATION TAG (16 BYTES / 128 BITS)</span>
+                          <span className="text-[9px] bg-black px-1.5 py-0.2 rounded border border-amber-700">AEAD INTEGRITY</span>
+                        </div>
+                        <p className="text-zinc-300 text-[11px] leading-relaxed">
+                          Calculated via Galois Field GHASH polynomial math over the ciphertext. If an attacker modifies even a single module in the QR code, the auth tag will not match and the payload is immediately rejected.
+                        </p>
+                        <div className="p-2 bg-black text-[10px] text-amber-400 font-mono break-all rounded border border-zinc-800">
+                          Hex: {dissection.tagHex}
+                        </div>
+                      </div>
+
+                    </div>
+
+                    {/* Direct Decryption Action Bridge */}
+                    <div className="p-3.5 bg-gradient-to-r from-purple-950/60 to-zinc-900 border border-purple-500/40 rounded flex flex-col sm:flex-row items-center justify-between gap-3">
+                      <div>
+                        <span className="text-white font-bold block">READY TO RECOVER CLEARTEXT CARGO?</span>
+                        <span className="text-zinc-400 text-[11px]">
+                          Passphrase &quot;quantum2026&quot; can decrypt this payload container back to human-readable form.
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setDecryptInputPayload(dissectInput);
+                          setActiveTab('crypto-lab');
+                        }}
+                        className="px-4 py-2 bg-[#ccff00] hover:bg-white text-black font-black text-xs uppercase rounded transition-colors cursor-pointer flex items-center gap-1.5 shrink-0"
+                      >
+                        <Unlock className="w-3.5 h-3.5" />
+                        <span>TEST DECRYPT IN ENCRYPTION LAB →</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* Plaintext Warning Card */
+                  <div className="p-4 bg-zinc-900 border border-zinc-700 space-y-2">
+                    <div className="flex items-center gap-2 text-amber-400 font-bold">
+                      <AlertTriangle className="w-4 h-4" />
+                      <span>UNENCRYPTED PLAINTEXT PAYLOAD DETECTED</span>
+                    </div>
+                    <p className="text-zinc-300 text-[11px] leading-relaxed">
+                      This payload has <strong>no encryption wrapper, salt, or authentication tag</strong>. Any phone camera or optical scanner that scans this QR code will immediately decode the raw message with zero authentication required.
+                    </p>
+                    <div className="flex items-center gap-4 text-[10px] text-zinc-400 pt-1">
+                      <span>Total Payload Bytes: <strong className="text-white">{dissection.totalBytes} B</strong></span>
+                      <span>Shannon Entropy: <strong className="text-white">{dissection.entropy.toFixed(2)} b/c (Predictable Text)</strong></span>
+                      <span>Security Level: <strong className="text-rose-400">PUBLIC / EXPOSED</strong></span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* The 6-Phase Payload Encryption Lifecycle */}
+              <div className="border border-zinc-800 bg-zinc-950 p-5 space-y-4">
+                <h4 className="text-sm font-bold text-white uppercase flex items-center gap-2 border-b border-zinc-800 pb-2">
+                  <Layers className="w-4 h-4 text-[#ccff00]" />
+                  <span>THE 6-PHASE LIFECYCLE OF A PAYLOAD IN ENCRYPTION</span>
+                </h4>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  
+                  <div className="p-3 bg-zinc-900 border border-zinc-800 space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-[#ccff00] font-bold">
+                      <span className="w-4 h-4 rounded bg-[#ccff00] text-black flex items-center justify-center text-[10px]">1</span>
+                      <span>CLEARTEXT PAYLOAD (THE CARGO)</span>
+                    </div>
+                    <p className="text-zinc-300 text-[11px] leading-relaxed">
+                      The original sensitive string: credentials, crypto seed phrases, private URLs, or patient medical identifiers. Low Shannon entropy ($H \approx 2.5 - 3.8$).
+                    </p>
+                  </div>
+
+                  <div className="p-3 bg-zinc-900 border border-zinc-800 space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-emerald-400 font-bold">
+                      <span className="w-4 h-4 rounded bg-emerald-400 text-black flex items-center justify-center text-[10px]">2</span>
+                      <span>KEY DERIVATION (PBKDF2 + SALT)</span>
+                    </div>
+                    <p className="text-zinc-300 text-[11px] leading-relaxed">
+                      The user passphrase is fed into PBKDF2 with a 16-byte random salt and 100,000 iterations of HMAC-SHA256, deriving a 256-bit symmetric key.
+                    </p>
+                  </div>
+
+                  <div className="p-3 bg-zinc-900 border border-zinc-800 space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-cyan-400 font-bold">
+                      <span className="w-4 h-4 rounded bg-cyan-400 text-black flex items-center justify-center text-[10px]">3</span>
+                      <span>NONCE / IV GENERATION</span>
+                    </div>
+                    <p className="text-zinc-300 text-[11px] leading-relaxed">
+                      12 fresh cryptographically secure random bytes are drawn. In AES-GCM, the IV ensures that identical payloads never produce matching ciphertext outputs.
+                    </p>
+                  </div>
+
+                  <div className="p-3 bg-zinc-900 border border-zinc-800 space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-purple-400 font-bold">
+                      <span className="w-4 h-4 rounded bg-purple-400 text-black flex items-center justify-center text-[10px]">4</span>
+                      <span>AES-GCM 256 TRANSFORMATION</span>
+                    </div>
+                    <p className="text-zinc-300 text-[11px] leading-relaxed">
+                      The cleartext payload is scrambled via 14 rounds of substitution and permutation. Shannon entropy spikes to &gt; 5.0 bits/character.
+                    </p>
+                  </div>
+
+                  <div className="p-3 bg-zinc-900 border border-zinc-800 space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-amber-400 font-bold">
+                      <span className="w-4 h-4 rounded bg-amber-400 text-black flex items-center justify-center text-[10px]">5</span>
+                      <span>GALOIS AUTHENTICATION TAG</span>
+                    </div>
+                    <p className="text-zinc-300 text-[11px] leading-relaxed">
+                      A 16-byte GMAC seal is appended. It acts as a cryptographic checksum guaranteeing zero bit-flipping, physical barcode tampering, or forged QR modules.
+                    </p>
+                  </div>
+
+                  <div className="p-3 bg-zinc-900 border border-zinc-800 space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-rose-400 font-bold">
+                      <span className="w-4 h-4 rounded bg-rose-400 text-black flex items-center justify-center text-[10px]">6</span>
+                      <span>QR MATRIX MODULE STAMPING</span>
+                    </div>
+                    <p className="text-zinc-300 text-[11px] leading-relaxed">
+                      The container <code>ENC:AES:&lt;Base64&gt;</code> is encoded into 2D modules with Reed-Solomon parity and physical 300 DPI printer chunks.
+                    </p>
+                  </div>
+
+                </div>
+              </div>
+
+              {/* Side-by-Side: Plaintext Payload vs Encrypted Payload */}
+              <div className="border border-zinc-800 bg-zinc-950 p-5 space-y-3">
+                <h4 className="text-sm font-bold text-white uppercase flex items-center gap-2 border-b border-zinc-800 pb-2">
+                  <Shield className="w-4 h-4 text-[#ccff00]" />
+                  <span>PLAINTEXT PAYLOAD VS. ENCRYPTED PAYLOAD COMPARISON</span>
+                </h4>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left font-mono text-[11px]">
+                    <thead>
+                      <tr className="border-b border-zinc-800 text-zinc-400 bg-zinc-900">
+                        <th className="p-2.5">SECURITY DIMENSION</th>
+                        <th className="p-2.5 text-rose-300">STANDARD PLAINTEXT PAYLOAD</th>
+                        <th className="p-2.5 text-[#ccff00]">ENCRYPTED QR PAYLOAD (AES-GCM)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-900">
+                      <tr>
+                        <td className="p-2.5 font-bold text-white">Visual Eavesdropping</td>
+                        <td className="p-2.5 text-zinc-300">Vulnerable: Readable from 10 feet away with any phone camera.</td>
+                        <td className="p-2.5 text-[#ccff00]">Immune: Camera only captures scrambled ciphertext noise.</td>
+                      </tr>
+                      <tr>
+                        <td className="p-2.5 font-bold text-white">Tamper Detection</td>
+                        <td className="p-2.5 text-zinc-300">None: Attacker can stick a replacement sticker over the code (Quishing).</td>
+                        <td className="p-2.5 text-[#ccff00]">Absolute: 128-bit GMAC Tag mathematically detects any modified module.</td>
+                      </tr>
+                      <tr>
+                        <td className="p-2.5 font-bold text-white">Access Control</td>
+                        <td className="p-2.5 text-zinc-300">Public: Anyone who can see it can execute it.</td>
+                        <td className="p-2.5 text-[#ccff00]">Gated: Requires authorized client and shared passphrase.</td>
+                      </tr>
+                      <tr>
+                        <td className="p-2.5 font-bold text-white">Cryptographic Overhead</td>
+                        <td className="p-2.5 text-zinc-300">0 Bytes: Exactly equal to string length.</td>
+                        <td className="p-2.5 text-[#ccff00]">+44 Bytes: Salt (16B) + IV (12B) + Auth Tag (16B).</td>
+                      </tr>
+                      <tr>
+                        <td className="p-2.5 font-bold text-white">Shannon Entropy</td>
+                        <td className="p-2.5 text-zinc-300">Low to Moderate ($H \approx 2.5 - 3.8$ bits/char).</td>
+                        <td className="p-2.5 text-[#ccff00]">Maximum ($H &gt; 5.0$ bits/char - Uniform Random Noise).</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+            </div>
+          );
+        })()}
+
+        {/* ========================================================================= */}
+        {/* TAB 3: PATTERN TECHNOLOGY & GEOMETRY DIAGNOSTICS */}
         {/* ========================================================================= */}
         {activeTab === 'technology' && (
           <div className="space-y-6 font-mono">
@@ -954,6 +1350,17 @@ export default function QRCrushSecretPage() {
                     <div className="p-2 bg-black border border-zinc-800 text-[10px] text-purple-300 break-all max-h-20 overflow-y-auto">
                       {encryptedOutput}
                     </div>
+
+                    <button
+                      onClick={() => {
+                        setDissectInput(encryptedOutput);
+                        setActiveTab('payload-intel');
+                      }}
+                      className="w-full py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-purple-500/50 text-purple-300 font-mono text-[10px] font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <Box className="w-3.5 h-3.5 text-[#ccff00]" />
+                      <span>DISSECT THIS ENCRYPTED PAYLOAD (SALT + IV + TAG) →</span>
+                    </button>
 
                     {encryptedQRDataUrl && (
                       <div className="pt-2 flex flex-col items-center">

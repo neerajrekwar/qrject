@@ -524,6 +524,114 @@ export async function decryptPayloadAESGCM(encryptedPayload: string, passphrase:
   return new TextDecoder().decode(decryptedBuffer);
 }
 
+export interface DissectedPayload {
+  isEncrypted: boolean;
+  prefix: string;
+  totalLengthChars: number;
+  totalBytes: number;
+  entropy: number;
+  saltBytes?: number;
+  saltHex?: string;
+  saltBase64?: string;
+  ivBytes?: number;
+  ivHex?: string;
+  ivBase64?: string;
+  ciphertextBytes?: number;
+  ciphertextHex?: string;
+  ciphertextBase64?: string;
+  tagBytes?: number;
+  tagHex?: string;
+  tagBase64?: string;
+  cryptoOverheadBytes?: number;
+  kdfMethod?: string;
+  cipherMethod?: string;
+  humanExplanation: string;
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join(' ');
+}
+
+/**
+ * Forensically dissects an encrypted QR payload into its constituent cryptographic layers
+ */
+export function dissectEncryptedPayload(payload: string): DissectedPayload {
+  const trimmed = payload.trim();
+  const entropy = calculateShannonEntropy(trimmed);
+
+  let prefix = '';
+  let cleanBase64 = trimmed;
+
+  if (trimmed.startsWith('ENC:AES:')) {
+    prefix = 'ENC:AES:';
+    cleanBase64 = trimmed.slice(prefix.length);
+  } else if (trimmed.startsWith('AES-GCM:')) {
+    prefix = 'AES-GCM:';
+    cleanBase64 = trimmed.slice(prefix.length);
+  }
+
+  // Check if valid base64
+  let binaryBytes: Uint8Array | null = null;
+  try {
+    const binaryString = atob(cleanBase64);
+    binaryBytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      binaryBytes[i] = binaryString.charCodeAt(i);
+    }
+  } catch {
+    binaryBytes = null;
+  }
+
+  // If binaryBytes is valid and has at least salt (16) + iv (12) + tag (16) = 44 bytes
+  if (binaryBytes && binaryBytes.length >= 44 && (prefix || entropy > 4.5)) {
+    const salt = binaryBytes.slice(0, 16);
+    const iv = binaryBytes.slice(16, 28);
+    // AES-GCM appends 16-byte authentication tag at the end of ciphertext
+    const tag = binaryBytes.slice(binaryBytes.length - 16);
+    const ciphertext = binaryBytes.slice(28, binaryBytes.length - 16);
+
+    return {
+      isEncrypted: true,
+      prefix: prefix || 'RAW_BASE64',
+      totalLengthChars: trimmed.length,
+      totalBytes: binaryBytes.length,
+      entropy,
+      saltBytes: salt.length,
+      saltHex: bytesToHex(salt),
+      saltBase64: btoa(String.fromCharCode(...salt)),
+      ivBytes: iv.length,
+      ivHex: bytesToHex(iv),
+      ivBase64: btoa(String.fromCharCode(...iv)),
+      ciphertextBytes: ciphertext.length,
+      ciphertextHex: bytesToHex(ciphertext.slice(0, 32)) + (ciphertext.length > 32 ? ' ...' : ''),
+      ciphertextBase64: btoa(String.fromCharCode(...ciphertext)),
+      tagBytes: tag.length,
+      tagHex: bytesToHex(tag),
+      tagBase64: btoa(String.fromCharCode(...tag)),
+      cryptoOverheadBytes: 16 + 12 + 16, // 44 bytes fixed overhead
+      kdfMethod: 'PBKDF2 (100,000 iterations, HMAC-SHA256)',
+      cipherMethod: 'AES-GCM 256-Bit (Galois/Counter Mode, AEAD)',
+      humanExplanation:
+        'This payload is a military-grade AEAD container. It embeds a 16-byte random cryptographic Salt (defeating rainbow tables), a 12-byte unique Initialization Vector (preventing pattern correlation), the AES-256 encrypted payload body, and a 16-byte Galois Authentication Tag (ensuring zero module tampering).',
+    };
+  }
+
+  // Fallback for unencrypted / plain payload
+  const rawBytes = new TextEncoder().encode(trimmed);
+  return {
+    isEncrypted: false,
+    prefix: 'PLAINTEXT',
+    totalLengthChars: trimmed.length,
+    totalBytes: rawBytes.length,
+    entropy,
+    cryptoOverheadBytes: 0,
+    humanExplanation:
+      'This is an unencrypted, plaintext payload. Any optical scanner or smartphone camera reading this QR code will instantly parse the raw data without needing a cryptographic key or authentication verification.',
+  };
+}
+
 /**
  * Synthesizes a fresh QR code from any payload to test reverse-engineering
  */
