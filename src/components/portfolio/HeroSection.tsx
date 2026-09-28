@@ -90,13 +90,13 @@ const QUICK_PRESETS = [
   },
   {
     label: 'VIP Dev Pass',
-    text: 'https://summit.globalai.dev/verify/DEV-AI-2026-8849',
+    text: 'नमो नमः मित्रवर्ग! भवतः दिनं शुभं मङ्गलमयं च भूयात्।',
     shape: 'square' as DotShape,
     photoId: 'bw-cyber-avatar',
   },
   {
     label: 'Monolith Seal',
-    text: 'https://qrject.dev/spec/iso18004-monolith-verification-token',
+    text: 'https://neerajrekwar.github.io/',
     shape: 'diamond' as DotShape,
     photoId: 'bw-nr-monogram',
   },
@@ -109,7 +109,7 @@ export function HeroSection({
 }: HeroSectionProps) {
   // Master QR State configured for whole-image 300 DPI high-contrast Photo B/W format
   const [options, setOptions] = useState<QROptions>({
-    text: 'https://summit.globalai.dev/verify/DEV-AI-2026-8849',
+    text: 'नमो नमः मित्रवर्ग! भवतः दिनं शुभं मङ्गलमयं च भूयात्।',
     foregroundColor: '#000000',
     backgroundColor: '#ffffff',
     gradientEnabled: false,

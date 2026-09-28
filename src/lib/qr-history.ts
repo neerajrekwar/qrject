@@ -38,13 +38,13 @@ export function getInitialDefaultSeeds(): QRHistoryItem[] {
     {
       id: 'seed-summit-pass',
       title: 'Global AI Summit 2026 // VIP Pass',
-      content: 'https://summit.globalai.dev/verify/DEV-AI-2026-8849',
+      content: 'नमो नमः मित्रवर्ग! भवतः दिनं शुभं मङ्गलमयं च भूयात्।',
       timestamp: Date.now() - 3600000 * 2,
       dateFormatted: 'Today, 2h ago',
       contrast: 21.0,
       format: '300 DPI PNG',
       options: {
-        text: 'https://summit.globalai.dev/verify/DEV-AI-2026-8849',
+        text: 'नमो नमः मित्रवर्ग! भवतः दिनं शुभं मङ्गलमयं च भूयात्।',
         foregroundColor: '#000000',
         backgroundColor: '#ffffff',
         gradientEnabled: false,
