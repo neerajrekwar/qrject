@@ -10,6 +10,7 @@ export interface QRHistoryItem {
   previewDataUrl?: string;
   format?: string;
   contrast: number;
+  userEmail?: string;
 }
 
 const STORAGE_KEY = 'qrject_recent_codes_v2';
@@ -105,16 +106,35 @@ export function loadQRHistory(): QRHistoryItem[] {
   if (typeof window === 'undefined') return [];
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      const defaults = getInitialDefaultSeeds();
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(defaults));
-      return defaults;
+    let localItems: QRHistoryItem[] = [];
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        localItems = parsed;
+      }
+    } else {
+      localItems = getInitialDefaultSeeds();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(localItems));
     }
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed;
-    }
-    return getInitialDefaultSeeds();
+
+    // Trigger background sync from MongoDB to keep local storage fresh
+    fetch('/api/history')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.items && Array.isArray(data.items) && data.items.length > 0) {
+          // Merge items by ID
+          const existingIds = new Set(localItems.map((i) => i.id));
+          const toAdd = data.items.filter((it: QRHistoryItem) => !existingIds.has(it.id));
+          if (toAdd.length > 0) {
+            const merged = [...toAdd, ...localItems].slice(0, MAX_HISTORY_ITEMS);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+            window.dispatchEvent(new Event('qrject_history_updated'));
+          }
+        }
+      })
+      .catch(() => {});
+
+    return localItems;
   } catch (err) {
     console.error('Error loading QR history from localStorage:', err);
     return getInitialDefaultSeeds();
@@ -127,17 +147,7 @@ export function saveQRHistory(items: QRHistoryItem[]): void {
     const trimmed = items.slice(0, MAX_HISTORY_ITEMS);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
   } catch (err) {
-    console.warn('Failed to save QR history to localStorage (possibly quota exceeded):', err);
-    // If quota exceeded, try trimming previewDataUrls
-    try {
-      const lightweight = items.slice(0, 10).map((it) => ({
-        ...it,
-        previewDataUrl: undefined,
-      }));
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(lightweight));
-    } catch {
-      // Ignore fallback failure
-    }
+    console.warn('Failed to save QR history to localStorage:', err);
   }
 }
 
@@ -195,6 +205,16 @@ export async function addQRToHistory(
 
   const updated = [newItem, ...filtered];
   saveQRHistory(updated);
+
+  // Sync to MongoDB database immediately in background
+  if (typeof window !== 'undefined') {
+    fetch('/api/history', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newItem),
+    }).catch((e) => console.warn('Failed to sync history item to MongoDB:', e));
+  }
+
   return updated;
 }
 
@@ -202,12 +222,23 @@ export function deleteQRHistoryItem(id: string): QRHistoryItem[] {
   const current = loadQRHistory();
   const updated = current.filter((it) => it.id !== id);
   saveQRHistory(updated);
+
+  // Sync deletion with MongoDB
+  if (typeof window !== 'undefined') {
+    fetch(`/api/history?id=${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    }).catch(() => {});
+  }
+
   return updated;
 }
 
 export function clearQRHistory(): QRHistoryItem[] {
   if (typeof window !== 'undefined') {
     localStorage.removeItem(STORAGE_KEY);
+    fetch('/api/history?clearAll=true', {
+      method: 'DELETE',
+    }).catch(() => {});
   }
   return [];
 }

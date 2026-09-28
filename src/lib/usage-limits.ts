@@ -137,3 +137,27 @@ export function resetGuestUsageForTesting(): void {
   } catch {}
   window.dispatchEvent(new Event('qrject_usage_updated'));
 }
+
+export function syncUsageWithServer(): Promise<UsageStats | null> {
+  if (typeof window === 'undefined') return Promise.resolve(null);
+  return fetch('/api/usage')
+    .then((res) => (res.ok ? res.json() : null))
+    .then((data) => {
+      if (data && typeof data.totalUsed === 'number') {
+        const local = getLocalUsageCount();
+        if (data.totalUsed > local) {
+          setLocalUsageCount(data.totalUsed);
+        }
+        return getUsageStats(Boolean(data.isLoggedIn), data.plan);
+      }
+      return null;
+    })
+    .catch(() => null);
+}
+
+// Auto-sync usage from server device footprint on load
+if (typeof window !== 'undefined') {
+  setTimeout(() => {
+    syncUsageWithServer();
+  }, 100);
+}
