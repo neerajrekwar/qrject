@@ -13,11 +13,11 @@ export function Navbar({ onOpenContact, onOpenQRArtifact }: NavbarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navLinks = [
-    { label: 'ABOUT', href: '#about' },
-    { label: 'PROJECTS', href: '#projects' },
-    { label: 'REGISTRY', href: '#registry' },
-    { label: 'SERVICES', href: '#services' },
-    { label: 'CONTACT', href: '#contact' },
+    // { label: 'ABOUT', href: '#about' },
+    // { label: 'PROJECTS', href: '#projects' },
+    // { label: 'REGISTRY', href: '#registry' },
+    // { label: 'SERVICES', href: '#services' },
+    // { label: 'CONTACT', href: '#contact' },
   ];
 
   return (
