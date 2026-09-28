@@ -4,6 +4,14 @@ export const GUEST_GENERATION_LIMIT = 2;
 export const AUTH_FREE_GENERATION_LIMIT = 10;
 export const PRO_GENERATION_LIMIT = 100;
 
+export type ToolKey =
+  | 'qr_studio'
+  | 'photo_dpi'
+  | 'barcode_pick'
+  | 'fitness_glass'
+  | 'batch_zip'
+  | 'general_generator';
+
 export interface UsageStats {
   used: number;
   limit: number;
@@ -11,9 +19,11 @@ export interface UsageStats {
   canGenerate: boolean;
   isLoggedIn: boolean;
   plan: 'guest' | 'free' | 'pro';
+  toolBreakdown?: Record<string, number>;
 }
 
 const STORAGE_USAGE_KEY = 'qrject_usage_count_v2';
+const STORAGE_BREAKDOWN_KEY = 'qrject_tool_breakdown_v2';
 
 export function getLocalUsageCount(): number {
   if (typeof window === 'undefined') return 0;
@@ -25,10 +35,27 @@ export function getLocalUsageCount(): number {
   }
 }
 
-export function setLocalUsageCount(count: number): void {
+export function getLocalToolBreakdown(): Record<string, number> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(STORAGE_BREAKDOWN_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function setLocalUsageCount(count: number, toolKey?: ToolKey): void {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(STORAGE_USAGE_KEY, count.toString());
+
+    if (toolKey) {
+      const breakdown = getLocalToolBreakdown();
+      breakdown[toolKey] = (breakdown[toolKey] || 0) + 1;
+      localStorage.setItem(STORAGE_BREAKDOWN_KEY, JSON.stringify(breakdown));
+    }
+
     // Dispatch custom event for cross-component reactive updates
     window.dispatchEvent(new Event('qrject_usage_updated'));
   } catch (e) {
@@ -54,29 +81,59 @@ export function getUsageStats(isLoggedIn: boolean, plan: 'free' | 'pro' = 'free'
     canGenerate,
     isLoggedIn,
     plan: !isLoggedIn ? 'guest' : plan,
+    toolBreakdown: getLocalToolBreakdown(),
   };
 }
 
-export function tryConsumeGenerationQuota(
-  isLoggedIn: boolean,
+/**
+ * Consumes 1 quota for a specific tool. If quota exhausted, dispatches limit modal event and returns false.
+ */
+export async function consumeToolQuota(
+  toolKey: ToolKey = 'general_generator',
+  isLoggedIn: boolean = false,
   plan: 'free' | 'pro' = 'free'
-): { allowed: boolean; stats: UsageStats; message?: string } {
+): Promise<{ allowed: boolean; stats: UsageStats; message?: string }> {
   const currentStats = getUsageStats(isLoggedIn, plan);
 
   if (!currentStats.canGenerate) {
     const message = !isLoggedIn
-      ? `Guest limit reached (${GUEST_GENERATION_LIMIT}/${GUEST_GENERATION_LIMIT} generations). Please sign in with Google, X, Instagram, or Email to unlock 10 generations!`
-      : `Free limit reached (${currentStats.limit}/${currentStats.limit} generations). Upgrade your plan to continue generating.`;
+      ? `Guest generation limit reached (${GUEST_GENERATION_LIMIT}/${GUEST_GENERATION_LIMIT}). Sign in with Google, X, or Email to unlock 10 generations or support on Ko-fi!`
+      : `Account limit reached (${currentStats.limit}/${currentStats.limit}). Support on Ko-fi or upgrade to Pro to unlock unlimited generations.`;
+
+    // Trigger universal quota exhaustion dialog modal
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('qrject_limit_exhausted', {
+          detail: { toolKey, stats: currentStats, message },
+        })
+      );
+    }
+
     return { allowed: false, stats: currentStats, message };
   }
 
+  // Increment local storage counter immediately
   const nextUsed = currentStats.used + 1;
-  setLocalUsageCount(nextUsed);
+  setLocalUsageCount(nextUsed, toolKey);
+
+  // Sync with MongoDB backend asynchronously
+  if (typeof window !== 'undefined') {
+    fetch('/api/usage', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ toolKey }),
+    }).catch((e) => console.warn('Usage sync warning:', e));
+  }
 
   const updatedStats = getUsageStats(isLoggedIn, plan);
   return { allowed: true, stats: updatedStats };
 }
 
 export function resetGuestUsageForTesting(): void {
+  if (typeof window === 'undefined') return;
   setLocalUsageCount(0);
+  try {
+    localStorage.removeItem(STORAGE_BREAKDOWN_KEY);
+  } catch {}
+  window.dispatchEvent(new Event('qrject_usage_updated'));
 }

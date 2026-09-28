@@ -34,6 +34,9 @@ import {
 } from '@/lib/qr-engine';
 import { generate300DpiPDF, triggerDownload } from '@/lib/qr-export';
 import { PHOTO_PRESETS } from '@/lib/photo-presets';
+import { useSession } from 'next-auth/react';
+import { consumeToolQuota } from '@/lib/usage-limits';
+import { RAPID_PAYLOAD_TEMPLATES, PayloadTemplate } from '@/lib/payload-templates';
 
 interface QRStudioProps {
   options: QROptions;
@@ -104,6 +107,9 @@ export function QRStudio({ options, onOptionsChange, onCodeExported }: QRStudioP
   const [activeTab, setActiveTab] = useState<'photo' | 'content' | 'shapes' | 'colors' | 'print'>('photo');
   const [copied, setCopied] = useState<string | null>(null);
   const [customPhotoName, setCustomPhotoName] = useState<string | null>(null);
+  const { data: session } = useSession();
+  const [templateCategory, setTemplateCategory] = useState<string>('All');
+  const [templateSearch, setTemplateSearch] = useState<string>('');
   const [isExporting, setIsExporting] = useState(false);
 
   // Live Optical Scan Verification State
@@ -120,6 +126,13 @@ export function QRStudio({ options, onOptionsChange, onCodeExported }: QRStudioP
   const contrast = calculateContrastRatio(options.foregroundColor, options.backgroundColor);
   const isHighContrast = contrast >= 7.0;
   const isContrastWarning = contrast < 4.5;
+
+  const verifyQuota = async () => {
+    const isLogged = Boolean(session?.user);
+    const plan = ((session?.user as any)?.plan || 'free') as 'free' | 'pro';
+    const res = await consumeToolQuota('qr_studio', isLogged, plan);
+    return res.allowed;
+  };
 
   // Render on canvas whenever options change & verify optical scannability
   useEffect(() => {
@@ -199,6 +212,9 @@ export function QRStudio({ options, onOptionsChange, onCodeExported }: QRStudioP
   };
 
   const handleDownloadPNG = async (dpi: 72 | 300 | 600 = 300) => {
+    const allowed = await verifyQuota();
+    if (!allowed) return;
+
     setIsExporting(true);
     try {
       const targetPx = dpi === 72 ? 800 : dpi === 300 ? 2400 : 4800;
@@ -233,7 +249,10 @@ export function QRStudio({ options, onOptionsChange, onCodeExported }: QRStudioP
     }
   };
 
-  const handleDownloadSVG = () => {
+  const handleDownloadSVG = async () => {
+    const allowed = await verifyQuota();
+    if (!allowed) return;
+
     const svgString = generateQRSVG(options);
     const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -251,7 +270,10 @@ export function QRStudio({ options, onOptionsChange, onCodeExported }: QRStudioP
     }
   };
 
-  const handleCopySVG = () => {
+  const handleCopySVG = async () => {
+    const allowed = await verifyQuota();
+    if (!allowed) return;
+
     const svgString = generateQRSVG(options);
     navigator.clipboard.writeText(svgString);
     setCopied('svg');
@@ -259,6 +281,9 @@ export function QRStudio({ options, onOptionsChange, onCodeExported }: QRStudioP
   };
 
   const handleDownloadPDF = async () => {
+    const allowed = await verifyQuota();
+    if (!allowed) return;
+
     setIsExporting(true);
     try {
       const result = await generate300DpiPDF(options);
@@ -513,15 +538,95 @@ export function QRStudio({ options, onOptionsChange, onCodeExported }: QRStudioP
 
         {/* TAB 2: CONTENT & SCANNER COMPATIBILITY */}
         {activeTab === 'content' && (
-          <div className="mt-6 space-y-5">
+          <div className="mt-6 space-y-6">
+            {/* Rapid Payload Templates Selector */}
+            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2">
+                <div>
+                  <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                    <Scan className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>RAPID PAYLOAD TEMPLATES</span>
+                  </h4>
+                  <p className="text-[11px] text-slate-400">
+                    One-click preconfigured templates for Text, Web, vCard, Wi-Fi, Payments, Crypto, and Passes
+                  </p>
+                </div>
+
+                {/* Search Input */}
+                <input
+                  type="text"
+                  placeholder="Filter templates..."
+                  value={templateSearch}
+                  onChange={(e) => setTemplateSearch(e.target.value)}
+                  className="px-2.5 py-1 text-xs bg-slate-900 border border-slate-700 rounded text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-400 w-full sm:w-36 font-mono"
+                />
+              </div>
+
+              {/* Category Pills */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+                {['All', 'Text', 'Web & Links', 'Contact & Social', 'Connectivity', 'Commerce & Crypto', 'Events & Notes'].map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setTemplateCategory(cat)}
+                    className={`px-2.5 py-1 rounded text-[11px] font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                      templateCategory === cat
+                        ? 'bg-cyan-500 text-black shadow-sm'
+                        : 'bg-slate-900 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+
+              {/* Template Cards Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
+                {RAPID_PAYLOAD_TEMPLATES.filter((t) => {
+                  const matchesCat = templateCategory === 'All' || t.category === templateCategory;
+                  const matchesSearch =
+                    !templateSearch ||
+                    t.title.toLowerCase().includes(templateSearch.toLowerCase()) ||
+                    t.description.toLowerCase().includes(templateSearch.toLowerCase());
+                  return matchesCat && matchesSearch;
+                }).map((tmpl) => {
+                  const isCurrent = options.text === tmpl.templateValue;
+                  return (
+                    <button
+                      key={tmpl.id}
+                      type="button"
+                      onClick={() => {
+                        handleUpdate({ text: tmpl.templateValue });
+                      }}
+                      className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer block ${
+                        isCurrent
+                          ? 'bg-cyan-500/20 border-cyan-400 text-white shadow-sm'
+                          : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700 hover:bg-slate-850'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between font-bold text-xs">
+                        <span className="text-white truncate">{tmpl.title}</span>
+                        <span className="text-[9px] bg-slate-800 px-1.5 py-0.5 rounded text-slate-400 font-mono">
+                          {tmpl.category}
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-1 leading-snug line-clamp-1">
+                        {tmpl.description}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                QR Payload Content (URL, Text, VCARD, or Token)
+                QR Payload Content Editor (URL, Text, VCARD, or Token)
               </label>
               <textarea
                 value={options.text}
                 onChange={(e) => handleUpdate({ text: e.target.value })}
-                rows={3}
+                rows={4}
                 placeholder="https://example.com or any text..."
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-cyan-500 transition-colors font-mono"
               />

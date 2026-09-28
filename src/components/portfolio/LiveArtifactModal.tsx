@@ -28,6 +28,7 @@ import { ExportFormat } from '@/lib/qr-export';
 import { PHOTO_PRESETS } from '@/lib/photo-presets';
 import { blendImageWithQRCode, PhotoQRBlendResult } from '@/lib/photo-qr-blend';
 import { UsageBanner } from '@/components/auth/UsageBanner';
+import { QuotaLimitModal } from '@/components/auth/QuotaLimitModal';
 
 interface LiveArtifactModalProps {
   isOpen: boolean;
@@ -505,6 +506,9 @@ export function LiveArtifactModal({ isOpen, onClose }: LiveArtifactModalProps) {
             <span>{toastMessage}</span>
           </div>
         )}
+
+        {/* Universal Quota Exhaustion Modal */}
+        <QuotaLimitModal />
 
       </div>
     </div>

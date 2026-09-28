@@ -31,6 +31,9 @@ import {
   sanitizeBarcodePayload,
 } from '@/lib/barcode-engine';
 import { UsageBanner } from '@/components/auth/UsageBanner';
+import { useSession } from 'next-auth/react';
+import { consumeToolQuota } from '@/lib/usage-limits';
+import { QuotaLimitModal } from '@/components/auth/QuotaLimitModal';
 
 const QUICK_PRESETS: { label: string; format: BarcodeFormat; payload: string; desc: string }[] = [
   {
@@ -72,6 +75,7 @@ const QUICK_PRESETS: { label: string; format: BarcodeFormat; payload: string; de
 ];
 
 export default function BarcodePickPage() {
+  const { data: session } = useSession();
   const [options, setOptions] = useState<BarcodeOptions>(DEFAULT_BARCODE_OPTIONS);
   const [categoryFilter, setCategoryFilter] = useState<'All' | 'Logistics' | 'Retail' | 'Industrial' | 'Specialty'>('All');
   const [renderError, setRenderError] = useState<string | null>(null);
@@ -82,6 +86,13 @@ export default function BarcodePickPage() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const activeDef = BARCODE_CATALOG.find((b) => b.format === options.format) || BARCODE_CATALOG[0];
+
+  const verifyQuota = async () => {
+    const isLogged = Boolean(session?.user);
+    const plan = ((session?.user as any)?.plan || 'free') as 'free' | 'pro';
+    const res = await consumeToolQuota('barcode_pick', isLogged, plan);
+    return res.allowed;
+  };
 
   // Render barcode whenever options change
   useEffect(() => {
@@ -130,6 +141,9 @@ export default function BarcodePickPage() {
   };
 
   const handleDownloadPNG = async () => {
+    const allowed = await verifyQuota();
+    if (!allowed) return;
+
     setIsExporting(true);
     try {
       const result = await exportBarcodePNG(options, 2);
@@ -146,7 +160,10 @@ export default function BarcodePickPage() {
     }
   };
 
-  const handleDownloadSVG = () => {
+  const handleDownloadSVG = async () => {
+    const allowed = await verifyQuota();
+    if (!allowed) return;
+
     const svgStr = generateBarcodeSVG(options);
     const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -159,6 +176,9 @@ export default function BarcodePickPage() {
   };
 
   const handleDownloadPDF = async () => {
+    const allowed = await verifyQuota();
+    if (!allowed) return;
+
     setIsExporting(true);
     try {
       const result = await exportBarcodePDF(options);
@@ -715,6 +735,9 @@ export default function BarcodePickPage() {
           </div>
         </div>
       </footer>
+
+      {/* Universal Quota Exhaustion Modal */}
+      <QuotaLimitModal />
 
     </div>
   );

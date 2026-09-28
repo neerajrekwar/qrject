@@ -23,6 +23,9 @@ import {
 } from '@/lib/photo-dpi-engine';
 import { PHOTO_PRESETS } from '@/lib/photo-presets';
 import { UsageBanner } from '@/components/auth/UsageBanner';
+import { useSession } from 'next-auth/react';
+import { consumeToolQuota } from '@/lib/usage-limits';
+import { QuotaLimitModal } from '@/components/auth/QuotaLimitModal';
 
 const PRINT_SIZES = [
   { label: '4" × 6" Postcard', w: 4, h: 6, desc: '1200×1800 px @ 300 DPI' },
@@ -61,6 +64,7 @@ const TONE_MODES: { id: BWToneMode; label: string; desc: string }[] = [
 ];
 
 export default function NormalDPIPhotoPage() {
+  const { data: session } = useSession();
   const [currentImageSource, setCurrentImageSource] = useState<string>(PHOTO_PRESETS[0].dataUrl);
   const [imageFileName, setImageFileName] = useState<string>('Studio Portrait Specimen');
 
@@ -126,8 +130,18 @@ export default function NormalDPIPhotoPage() {
     reader.readAsDataURL(file);
   };
 
+  const verifyQuota = async () => {
+    const isLogged = Boolean(session?.user);
+    const plan = ((session?.user as any)?.plan || 'free') as 'free' | 'pro';
+    const res = await consumeToolQuota('photo_dpi', isLogged, plan);
+    return res.allowed;
+  };
+
   const handleExportPNG = async () => {
     if (!canvasRef.current) return;
+    const allowed = await verifyQuota();
+    if (!allowed) return;
+
     setIsExporting(true);
     try {
       const result = await exportPhotoDPI_PNG(canvasRef.current, options, 'Photo-Print');
@@ -143,6 +157,9 @@ export default function NormalDPIPhotoPage() {
 
   const handleExportPDF = async () => {
     if (!canvasRef.current) return;
+    const allowed = await verifyQuota();
+    if (!allowed) return;
+
     setIsExporting(true);
     try {
       const result = await exportPhotoDPI_PDF(canvasRef.current, options, 'Photo-Print');
@@ -771,6 +788,9 @@ export default function NormalDPIPhotoPage() {
           </div>
         </div>
       </footer>
+
+      {/* Universal Quota Exhaustion Modal */}
+      <QuotaLimitModal />
 
     </div>
   );
