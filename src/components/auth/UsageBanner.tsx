@@ -3,13 +3,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import {
-  Sparkles,
-  Lock,
-  Zap,
-  Coffee,
-  CheckCircle2,
-  AlertTriangle,
-  ArrowRight,
   LogIn,
 } from 'lucide-react';
 import { getUsageStats, UsageStats } from '@/lib/usage-limits';
@@ -27,7 +20,7 @@ export const UsageBanner: React.FC<UsageBannerProps> = ({
 }) => {
   const { data: session } = useSession();
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [monetizationMode, setMonetizationMode] = useState<1 | 0>(1);
+  const [monetizationMode, setMonetizationMode] = useState<1 | 0>(0);
   const [stats, setStats] = useState<UsageStats>({
     used: 0,
     limit: 2,
@@ -46,7 +39,7 @@ export const UsageBanner: React.FC<UsageBannerProps> = ({
   useEffect(() => {
     refresh();
 
-    // Fetch feature flag
+    // Fetch feature flag (defaults to 0 for Buy Me a Coffee unless FEATURE_FLAG_PLANS_MODE=1)
     fetch('/api/feature-flags')
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
@@ -66,9 +59,9 @@ export const UsageBanner: React.FC<UsageBannerProps> = ({
 
   return (
     <div className={`space-y-4 font-mono select-none ${className}`}>
-      {/* 1. Quota Alert Strip */}
+      {/* 1. Top Quota Box (Exact match to screenshot) */}
       <div
-        className={`border-4 border-black p-3.5 sm:p-4 shadow-[4px_4px_0px_#000000] flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+        className={`border-4 border-black p-4 sm:p-5 shadow-[4px_4px_0px_#000000] space-y-3.5 ${
           isExhausted
             ? 'bg-[#ffecec] text-rose-950'
             : isGuest
@@ -76,14 +69,14 @@ export const UsageBanner: React.FC<UsageBannerProps> = ({
             : 'bg-[#f4fde8] text-zinc-900'
         }`}
       >
-        <div className="space-y-0.5">
+        <div className="space-y-1.5">
           <div className="flex items-center gap-2">
             <span
-              className={`w-2.5 h-2.5 border border-black inline-block ${
+              className={`w-3 h-3 border border-black inline-block shrink-0 ${
                 isExhausted ? 'bg-rose-600' : isGuest ? 'bg-amber-500' : 'bg-emerald-500'
               }`}
             />
-            <span className="font-black text-xs sm:text-sm uppercase tracking-tight">
+            <span className="font-black text-xs sm:text-sm uppercase tracking-tight text-black">
               {isGuest
                 ? 'GUEST GENERATION QUOTA: 2 GENERATIONS MAX'
                 : stats.plan === 'pro'
@@ -92,7 +85,7 @@ export const UsageBanner: React.FC<UsageBannerProps> = ({
             </span>
           </div>
 
-          <p className="text-[11px] font-bold text-zinc-600">
+          <p className="text-xs sm:text-[13px] font-bold text-zinc-700 leading-relaxed">
             {isGuest ? (
               <>
                 You have used <strong>{stats.used} of 2</strong> guest generations. Sign in with Google, X, Instagram, or Email to unlock 10 limits!
@@ -107,26 +100,26 @@ export const UsageBanner: React.FC<UsageBannerProps> = ({
           </p>
         </div>
 
-        {/* Action Button */}
+        {/* Full-width Sign In button */}
         {isGuest ? (
           <button
             type="button"
             onClick={() => setShowAuthModal(true)}
-            className="px-3.5 py-1.5 border-2 border-black bg-black text-[#ccff00] hover:bg-[#ccff00] hover:text-black font-black text-xs uppercase transition-all shadow-[2px_2px_0px_#000000] cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
+            className="w-full py-2.5 sm:py-3 border-2 border-black bg-black text-[#ccff00] hover:bg-[#ccff00] hover:text-black font-black text-xs sm:text-sm uppercase transition-all shadow-[2px_2px_0px_#000000] cursor-pointer flex items-center justify-center gap-2"
           >
-            <LogIn className="w-3.5 h-3.5" />
-            <span>SIGN IN (UNLOCK 10)</span>
+            <span>→] SIGN IN (UNLOCK 10)</span>
           </button>
         ) : (
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-black bg-black text-[#ccff00] px-2.5 py-1 border border-black">
+          <div className="flex items-center justify-between border-t border-black pt-2 text-xs">
+            <span className="font-bold text-zinc-600">Account status: {stats.plan.toUpperCase()}</span>
+            <span className="font-black bg-black text-[#ccff00] px-2.5 py-1 border border-black">
               {stats.used} / {stats.limit} USED
             </span>
           </div>
         )}
       </div>
 
-      {/* 2. Supporter Tipping & Pro Upgrade Tiers */}
+      {/* 2. Single Exclusive Monetization UI (Only 1 active based on env feature flag mode) */}
       {showMonetization && (
         <MonetizationBanner
           monetizationMode={monetizationMode}

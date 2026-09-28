@@ -7,40 +7,33 @@ import {
   Coffee,
   Sparkles,
   Check,
-  ShieldCheck,
   Heart,
-  Layers,
   ArrowRight,
   Zap,
   CreditCard,
   QrCode,
-  Copy,
   ExternalLink,
-  MessageSquare,
-  Lock,
   ArrowLeft,
   CheckCircle2,
   DollarSign,
-  Gift,
-  HelpCircle,
 } from 'lucide-react';
-import { setLocalUsageCount, GUEST_GENERATION_LIMIT } from '@/lib/usage-limits';
+import { setLocalUsageCount } from '@/lib/usage-limits';
 
 export default function TipAndPaymentPage() {
   const { data: session } = useSession();
 
-  // Active view: default loads from backend feature flag (1 = plans, 0 = coffee)
-  const [activeTab, setActiveTab] = useState<'coffee' | 'plans'>('coffee');
-  const [serverMode, setServerMode] = useState<1 | 0>(1);
+  // Mode strictly controlled by base env feature flag (1 = Plans, 0 = Buy Me a Coffee)
+  const [serverMode, setServerMode] = useState<1 | 0>(0);
   const [loadingFlag, setLoadingFlag] = useState<boolean>(true);
 
   // Coffee state
-  const [coffeeCount, setCoffeeCount] = useState<number>(3);
+  const [coffeeCount, setCoffeeCount] = useState<number>(2);
   const [customAmount, setCustomAmount] = useState<string>('');
   const [supporterName, setSupporterName] = useState<string>('');
   const [supporterMessage, setSupporterMessage] = useState<string>('');
-  const [paymentMethod, setPaymentMethod] = useState<'card' | 'upi' | 'paypal' | 'crypto'>('card');
+  const [paymentMethod, setPaymentMethod] = useState<'kofi' | 'card' | 'upi' | 'paypal' | 'crypto'>('kofi');
   const [copiedUpi, setCopiedUpi] = useState<boolean>(false);
+  const [copiedKofi, setCopiedKofi] = useState<boolean>(false);
   const [isProcessingTip, setIsProcessingTip] = useState<boolean>(false);
   const [tipSuccess, setTipSuccess] = useState<boolean>(false);
 
@@ -49,14 +42,12 @@ export default function TipAndPaymentPage() {
   const [selectedPlan, setSelectedPlan] = useState<'free' | 'pro' | 'enterprise'>('pro');
   const [planSuccess, setPlanSuccess] = useState<boolean>(false);
 
-  // Fetch initial mode
   useEffect(() => {
     fetch('/api/feature-flags')
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data && (data.monetizationMode === 0 || data.monetizationMode === 1)) {
           setServerMode(data.monetizationMode);
-          setActiveTab(data.monetizationMode === 1 ? 'plans' : 'coffee');
         }
       })
       .catch((e) => console.warn('Failed to fetch monetization mode:', e))
@@ -67,7 +58,7 @@ export default function TipAndPaymentPage() {
     }
   }, [session]);
 
-  const tipTotal = customAmount ? parseFloat(customAmount) || 0 : coffeeCount * 3;
+  const tipTotal = customAmount ? parseFloat(customAmount) || 0 : coffeeCount === 1 ? 3 : coffeeCount === 2 ? 5 : coffeeCount === 3 ? 15 : coffeeCount * 3;
 
   const handleProcessTip = (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,7 +67,6 @@ export default function TipAndPaymentPage() {
     setTimeout(() => {
       setIsProcessingTip(false);
       setTipSuccess(true);
-      // Boost local generation count as gratitude
       setLocalUsageCount(0);
     }, 1200);
   };
@@ -84,9 +74,19 @@ export default function TipAndPaymentPage() {
   const handleSelectPlan = (plan: 'free' | 'pro' | 'enterprise') => {
     setSelectedPlan(plan);
     setPlanSuccess(true);
-    // Reset limit to unlimited for pro
     setLocalUsageCount(0);
   };
+
+  if (loadingFlag) {
+    return (
+      <div className="min-h-screen bg-[#f5f5f0] text-black font-mono flex items-center justify-center p-4">
+        <div className="border-4 border-black bg-white p-6 shadow-[6px_6px_0px_#000000] flex items-center gap-3">
+          <div className="w-4 h-4 bg-black animate-spin" />
+          <span className="font-black text-sm uppercase">LOADING ENVIRONMENT CONFIGURATION...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#f5f5f0] text-black font-mono selection:bg-[#ccff00] selection:text-black flex flex-col">
@@ -96,37 +96,15 @@ export default function TipAndPaymentPage() {
         <div className="max-w-6xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-3">
           <Link
             href="/"
-            className="flex items-center gap-1.5 font-black text-xs uppercase hover:bg-black hover:text-[#ccff00] px-2 py-1 border-2 border-black transition-colors"
+            className="flex items-center gap-1.5 font-black text-xs uppercase hover:bg-black hover:text-[#ccff00] px-3 py-1.5 border-2 border-black transition-colors shadow-[2px_2px_0px_#000000]"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>BACK TO GENERATOR</span>
           </Link>
 
-          {/* Mode Switcher Tabs */}
-          <div className="flex items-center border-2 border-black bg-zinc-100 p-0.5 text-xs font-black">
-            <button
-              onClick={() => setActiveTab('coffee')}
-              className={`px-3 py-1.5 flex items-center gap-1.5 transition-all cursor-pointer ${
-                activeTab === 'coffee'
-                  ? 'bg-[#FFDD00] text-black shadow-[2px_2px_0px_#000000]'
-                  : 'text-zinc-600 hover:text-black'
-              }`}
-            >
-              <Coffee className="w-3.5 h-3.5 text-amber-900" />
-              <span>BUY ME A COFFEE</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('plans')}
-              className={`px-3 py-1.5 flex items-center gap-1.5 transition-all cursor-pointer ${
-                activeTab === 'plans'
-                  ? 'bg-black text-[#ccff00] shadow-[2px_2px_0px_#000000]'
-                  : 'text-zinc-600 hover:text-black'
-              }`}
-            >
-              <Zap className="w-3.5 h-3.5" />
-              <span>PLANS &amp; UPGRADE</span>
-            </button>
+          <div className="font-black text-xs uppercase text-zinc-600 flex items-center gap-2">
+            <span className="w-2 h-2 bg-[#ccff00] border border-black inline-block" />
+            <span>{serverMode === 1 ? 'PRO MEMBERSHIP TIERS' : 'CREATOR TIP & KO-FI SUPPORT'}</span>
           </div>
         </div>
       </div>
@@ -137,14 +115,14 @@ export default function TipAndPaymentPage() {
           <div className="inline-flex items-center gap-2 border-2 border-black bg-white px-3 py-1 shadow-[2px_2px_0px_#000000]">
             <span className="w-2.5 h-2.5 bg-[#ccff00] border border-black animate-pulse" />
             <span className="font-mono text-xs font-black tracking-widest text-black uppercase">
-              {activeTab === 'coffee' ? '// CREATOR SUPPORT & TIP' : '// PROFESSIONAL MEMBERSHIP TIERS'}
+              {serverMode === 0 ? '// CREATOR SUPPORT // KO-FI & TIP' : '// PROFESSIONAL MEMBERSHIP TIERS'}
             </span>
           </div>
 
           <h1 className="text-3xl sm:text-5xl font-black uppercase tracking-tight text-black">
-            {activeTab === 'coffee' ? (
+            {serverMode === 0 ? (
               <>
-                FUEL HIGH-DPI ENGINEERING <span className="text-amber-600">☕</span>
+                SUPPORT THE CREATOR <span className="text-amber-600">☕</span>
               </>
             ) : (
               <>
@@ -154,33 +132,39 @@ export default function TipAndPaymentPage() {
           </h1>
 
           <p className="text-xs sm:text-sm text-zinc-700 max-w-2xl font-bold">
-            {activeTab === 'coffee'
-              ? 'QRject provides industrial 300/600 DPI photo QR generation, optical halftoning, barcode matrixing, and fitness protocols. Your tip keeps server computation blazing fast and free for creators worldwide.'
+            {serverMode === 0
+              ? 'Help keep QRject high-resolution 300/600 DPI photo generation, barcode matrixing, and fitness protocols free & open-source for everyone.'
               : 'Choose the plan tailored for your creative workflow or enterprise event pass generation. Upgrade instantly to unlock unlimited exports and 600 DPI ultra-sharp vector outputs.'}
           </p>
         </div>
       </div>
 
-      {/* 3. MAIN CONTENT WORKSPACE */}
+      {/* 3. EXCLUSIVE WORKSPACE (ONLY 1 ACTIVE BASED ON BASE ENV) */}
       <main className="max-w-6xl mx-auto w-full px-4 py-8 flex-1 space-y-8">
         
         {/* ========================================================================= */}
-        {/* TAB 1: BUY ME A COFFEE (TIPPING / SUPPORTER)                               */}
+        {/* EXCLUSIVE VIEW 0: BUY ME A COFFEE / KO-FI (WHEN FEATURE_FLAG_PLANS_MODE=0) */}
         {/* ========================================================================= */}
-        {activeTab === 'coffee' && (
+        {serverMode === 0 && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
             
-            {/* Left Column: Tipping Form (7 cols) */}
+            {/* Left Column: Tipping & Ko-fi Form (7 cols) */}
             <div className="lg:col-span-7 border-4 border-black bg-white p-5 sm:p-6 shadow-[8px_8px_0px_#000000] space-y-6">
               
               <div className="border-b-2 border-black pb-3">
-                <h2 className="text-lg font-black uppercase text-black flex items-center gap-2">
-                  <Coffee className="w-5 h-5 text-amber-900" />
-                  <span>SEND A TIP / BUY A COFFEE</span>
-                </h2>
-                <p className="text-xs text-zinc-600 font-bold mt-0.5">
-                  1 Coffee = $3 · 100% direct developer contribution
-                </p>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-[#FFDD00] text-black font-black flex items-center justify-center border-2 border-black shrink-0">
+                    <Coffee className="w-5 h-5 text-black" />
+                  </div>
+                  <div>
+                    <h2 className="text-base sm:text-lg font-black uppercase text-black">
+                      SUPPORT THE CREATOR // BUY ME A COFFEE
+                    </h2>
+                    <p className="text-xs text-zinc-600 font-bold mt-0.5">
+                      100% direct developer contribution via Ko-fi &amp; payment channels
+                    </p>
+                  </div>
+                </div>
               </div>
 
               {tipSuccess ? (
@@ -192,7 +176,7 @@ export default function TipAndPaymentPage() {
                     THANK YOU FOR FUELING THE PROJECT!
                   </h3>
                   <p className="text-xs text-zinc-700 font-bold max-w-md mx-auto">
-                    Your contribution of <strong>${tipTotal.toFixed(2)}</strong> has been received with deep gratitude. Your generation quota has been refreshed.
+                    Your contribution of <strong>${tipTotal.toFixed(2)}</strong> has been received with deep gratitude. Your generation quota counter has been reset!
                   </p>
                   <div className="pt-2">
                     <button
@@ -206,44 +190,81 @@ export default function TipAndPaymentPage() {
               ) : (
                 <form onSubmit={handleProcessTip} className="space-y-5">
                   
-                  {/* Coffee Selector Pills */}
-                  <div>
-                    <label className="block text-xs font-black text-black uppercase mb-2">
-                      SELECT COFFEE QUANTITY
+                  {/* Coffee Selector Tiers (Stacked like screenshot) */}
+                  <div className="space-y-2.5">
+                    <label className="block text-xs font-black text-black uppercase">
+                      SELECT CONTRIBUTION TIER
                     </label>
 
-                    <div className="grid grid-cols-4 gap-2">
-                      {[1, 3, 5, 10].map((count) => {
-                        const isSelected = !customAmount && coffeeCount === count;
-                        return (
-                          <button
-                            key={count}
-                            type="button"
-                            onClick={() => {
-                              setCustomAmount('');
-                              setCoffeeCount(count);
-                            }}
-                            className={`p-3 border-2 border-black text-center transition-all cursor-pointer font-black ${
-                              isSelected
-                                ? 'bg-[#FFDD00] text-black shadow-[3px_3px_0px_#000000] translate-x-0.5 translate-y-0.5'
-                                : 'bg-white hover:bg-zinc-50'
-                            }`}
-                          >
-                            <div className="text-base sm:text-lg">
-                              {'☕'.repeat(Math.min(count, 3))}
-                            </div>
-                            <div className="text-xs mt-1">
-                              {count} {count === 1 ? 'Coffee' : 'Coffees'}
-                            </div>
-                            <div className="text-xs text-zinc-600 font-bold">${count * 3}</div>
-                          </button>
-                        );
-                      })}
-                    </div>
+                    {/* Tier 1: 1 ESPRESSO ($3) */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCustomAmount('');
+                        setCoffeeCount(1);
+                      }}
+                      className={`w-full border-2 border-black p-3.5 text-left transition-all cursor-pointer block ${
+                        !customAmount && coffeeCount === 1
+                          ? 'bg-[#FFDD00] shadow-[3px_3px_0px_#000000]'
+                          : 'bg-white hover:bg-zinc-50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between font-black text-sm text-black">
+                        <span>☕ 1 ESPRESSO</span>
+                        <span>$3</span>
+                      </div>
+                      <p className="text-[11px] text-zinc-800 mt-1 font-bold">
+                        Quick boost for servers &amp; high-DPI canvas algorithms.
+                      </p>
+                    </button>
+
+                    {/* Tier 2: 2 COFFEES ($5) */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCustomAmount('');
+                        setCoffeeCount(2);
+                      }}
+                      className={`w-full border-2 border-black p-3.5 text-left transition-all cursor-pointer block ${
+                        !customAmount && coffeeCount === 2
+                          ? 'bg-[#FFDD00] shadow-[3px_3px_0px_#000000]'
+                          : 'bg-white hover:bg-zinc-50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between font-black text-sm text-black">
+                        <span>☕☕ 2 COFFEES</span>
+                        <span>$5</span>
+                      </div>
+                      <p className="text-[11px] text-zinc-800 mt-1 font-bold">
+                        Keeps MongoDB profile persistence &amp; exports blazing fast.
+                      </p>
+                    </button>
+
+                    {/* Tier 3: ROASTER BAG ($15) */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCustomAmount('');
+                        setCoffeeCount(3);
+                      }}
+                      className={`w-full border-2 border-black p-3.5 text-left transition-all cursor-pointer block ${
+                        !customAmount && coffeeCount === 3
+                          ? 'bg-[#FFDD00] shadow-[3px_3px_0px_#000000]'
+                          : 'bg-white hover:bg-zinc-50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between font-black text-sm text-black">
+                        <span>☕☕☕ ROASTER BAG</span>
+                        <span>$15</span>
+                      </div>
+                      <p className="text-[11px] text-zinc-800 mt-1 font-bold">
+                        Supercharged supporter badge &amp; feature priority requests.
+                      </p>
+                    </button>
 
                     {/* Custom Amount */}
-                    <div className="mt-3 flex items-center gap-2">
-                      <span className="text-xs font-bold text-zinc-600">Or Custom Amount ($):</span>
+                    <div className="mt-3 flex items-center gap-2 pt-1">
+                      <span className="text-xs font-bold text-zinc-700">Or Custom Amount ($):</span>
                       <input
                         type="number"
                         min="1"
@@ -285,15 +306,16 @@ export default function TipAndPaymentPage() {
                     </div>
                   </div>
 
-                  {/* Payment Channel Selection */}
+                  {/* Payment Channels with Ko-fi Direct */}
                   <div className="space-y-2 pt-2 border-t border-black">
                     <label className="block text-xs font-black text-black uppercase">
                       PAYMENT CHANNEL
                     </label>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-black">
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs font-black">
                       {[
-                        { id: 'card', label: 'Credit Card', icon: CreditCard },
+                        { id: 'kofi', label: 'Ko-fi', icon: Coffee },
+                        { id: 'card', label: 'Card', icon: CreditCard },
                         { id: 'upi', label: 'UPI / QR', icon: QrCode },
                         { id: 'paypal', label: 'PayPal', icon: DollarSign },
                         { id: 'crypto', label: 'Crypto', icon: Zap },
@@ -307,7 +329,9 @@ export default function TipAndPaymentPage() {
                             onClick={() => setPaymentMethod(p.id as any)}
                             className={`p-2 border-2 border-black flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
                               isSelected
-                                ? 'bg-black text-[#ccff00] shadow-[2px_2px_0px_#000000]'
+                                ? p.id === 'kofi'
+                                  ? 'bg-[#13C3FF] text-white shadow-[2px_2px_0px_#000000]'
+                                  : 'bg-black text-[#ccff00] shadow-[2px_2px_0px_#000000]'
                                 : 'bg-white text-black hover:bg-zinc-100'
                             }`}
                           >
@@ -317,6 +341,40 @@ export default function TipAndPaymentPage() {
                         );
                       })}
                     </div>
+
+                    {/* Ko-fi Channel highlight */}
+                    {paymentMethod === 'kofi' && (
+                      <div className="border-2 border-black bg-[#f0faff] p-3 text-xs space-y-2.5">
+                        <div className="font-black text-black flex items-center justify-between flex-wrap gap-2">
+                          <span className="flex items-center gap-1.5">
+                            <Coffee className="w-4 h-4 text-[#13C3FF]" />
+                            <span>OFFICIAL KO-FI: ko-fi.com/neerajrekwar2001</span>
+                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText('https://ko-fi.com/neerajrekwar2001');
+                                setCopiedKofi(true);
+                                setTimeout(() => setCopiedKofi(false), 2000);
+                              }}
+                              className="text-[10px] bg-white border border-black px-2 py-1 font-bold hover:bg-black hover:text-white cursor-pointer"
+                            >
+                              {copiedKofi ? '✓ COPIED LINK' : 'COPY KO-FI'}
+                            </button>
+                            <a
+                              href="https://ko-fi.com/neerajrekwar2001"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[10px] bg-[#13C3FF] text-white border border-black px-2.5 py-1 font-black uppercase hover:bg-black hover:text-[#13C3FF] flex items-center gap-1 cursor-pointer"
+                            >
+                              <span>OPEN IN KO-FI</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {/* UPI Box details */}
                     {paymentMethod === 'upi' && (
@@ -335,9 +393,6 @@ export default function TipAndPaymentPage() {
                             {copiedUpi ? '✓ COPIED' : 'COPY UPI'}
                           </button>
                         </div>
-                        <p className="text-[11px] text-zinc-600">
-                          Scan or transfer using Google Pay, PhonePe, Paytm, or BHIM UPI app.
-                        </p>
                       </div>
                     )}
                   </div>
@@ -382,32 +437,28 @@ export default function TipAndPaymentPage() {
                   </li>
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                    <span>Supports high-resolution binary DPI metadata embedding algorithms.</span>
+                    <span>Direct support via official Ko-fi page (ko-fi.com/neerajrekwar2001).</span>
                   </li>
                 </ul>
               </div>
 
-              {/* Recent Community Supporters Wall */}
-              <div className="border-2 border-black bg-white p-4 shadow-[4px_4px_0px_#000000] space-y-3">
-                <div className="font-black text-xs uppercase text-zinc-500 tracking-wider">
-                  RECENT COMMUNITY SUPPORTERS
+              {/* Direct Ko-fi Card */}
+              <div className="border-4 border-black bg-[#13C3FF] text-white p-4 shadow-[4px_4px_0px_#000000] space-y-2">
+                <div className="font-black text-sm uppercase flex items-center justify-between">
+                  <span>KO-FI DIRECT CONTRIBUTION</span>
+                  <Coffee className="w-5 h-5 text-white" />
                 </div>
-
-                <div className="space-y-2 text-xs">
-                  {[
-                    { name: 'Alex M.', tip: '$15.00', msg: 'The 300 DPI B&W photo QR is unreal sharp on our press!' },
-                    { name: 'Marcus K.', tip: '$9.00', msg: 'Winter Arc 90-day printable sheet is a game changer.' },
-                    { name: 'Sarah L.', tip: '$5.00', msg: 'Cleanest barcode generator I have used.' },
-                  ].map((s, idx) => (
-                    <div key={idx} className="border border-black bg-[#fafaf8] p-2.5 space-y-0.5">
-                      <div className="flex items-center justify-between font-black text-black">
-                        <span>{s.name}</span>
-                        <span className="text-emerald-800">{s.tip}</span>
-                      </div>
-                      <p className="text-[11px] text-zinc-600 italic">&quot;{s.msg}&quot;</p>
-                    </div>
-                  ))}
-                </div>
+                <p className="text-xs font-bold text-white/95">
+                  Support Neeraj directly on Ko-fi with 0% platform fees.
+                </p>
+                <a
+                  href="https://ko-fi.com/neerajrekwar2001"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block w-full py-2 bg-black text-[#ccff00] hover:bg-white hover:text-black text-center font-black text-xs uppercase border-2 border-black transition-colors"
+                >
+                  OPEN KO-FI.COM/NEERAJREKWAR2001 ↗
+                </a>
               </div>
 
             </div>
@@ -416,9 +467,9 @@ export default function TipAndPaymentPage() {
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 2: PLANS & UPGRADES                                                    */}
+        {/* EXCLUSIVE VIEW 1: PLANS & MEMBERSHIP (WHEN FEATURE_FLAG_PLANS_MODE=1)     */}
         {/* ========================================================================= */}
-        {activeTab === 'plans' && (
+        {serverMode === 1 && (
           <div className="space-y-8">
             
             {/* Billing Toggle */}
@@ -455,7 +506,7 @@ export default function TipAndPaymentPage() {
                     <span className="font-black text-sm uppercase text-black">GUEST / FREE</span>
                     <span className="text-xl font-black text-black">$0</span>
                   </div>
-                  <p className="text-xs text-zinc-600">
+                  <p className="text-xs text-zinc-600 font-bold">
                     Perfect for casual users needing quick standard photo QRs or daily fitness tracking.
                   </p>
                   <ul className="space-y-2 text-xs font-bold text-zinc-700">
@@ -520,10 +571,6 @@ export default function TipAndPaymentPage() {
                       <Check className="w-3.5 h-3.5 text-emerald-700" />
                       <span>Batch CSV Event Matrix Zip Engine</span>
                     </li>
-                    <li className="flex items-center gap-2">
-                      <Check className="w-3.5 h-3.5 text-emerald-700" />
-                      <span>Raw Halftone Density Micro-tuning</span>
-                    </li>
                   </ul>
                 </div>
 
@@ -550,7 +597,7 @@ export default function TipAndPaymentPage() {
                     </div>
                   </div>
 
-                  <p className="text-xs text-zinc-600">
+                  <p className="text-xs text-zinc-600 font-bold">
                     High-volume ticketing infrastructure and custom API automation integrations.
                   </p>
 
@@ -595,7 +642,7 @@ export default function TipAndPaymentPage() {
 
       {/* 4. FOOTER */}
       <footer className="border-t-2 border-black bg-white py-4 px-4 font-mono text-xs text-center text-zinc-600">
-        QRject Engine · Secure 256-bit SSL encrypted checkout &amp; tipping infrastructure
+        QRject Engine · Secure 256-bit SSL encrypted checkout &amp; Ko-fi integration
       </footer>
 
     </div>

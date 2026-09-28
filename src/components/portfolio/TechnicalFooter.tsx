@@ -125,6 +125,16 @@ export function TechnicalFooter({ onOpenQRArtifact }: TechnicalFooterProps) {
                     <span>[LIVE]</span> <span>FITNESS GLASS (TIMETABLE)</span>
                   </Link>
                 </li>
+                <li>
+                  <a
+                    href="https://ko-fi.com/neerajrekwar2001"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="hover:text-[#ccff00] transition-colors text-left flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>[LIVE]</span> <span>KO-FI / CREATOR SUPPORT ☕</span>
+                  </a>
+                </li>
                 {onOpenQRArtifact && (
                   <li>
                     <button

@@ -9,18 +9,24 @@ export interface FeatureFlagConfig {
   updatedAt: string;
 }
 
-// Default memory state
-let memoryMonetizationMode: MonetizationMode = 1;
+// Default memory state (defaults to 0 unless FEATURE_FLAG_PLANS_MODE is set)
+let memoryMonetizationMode: MonetizationMode = 0;
 
 export async function getMonetizationFeatureFlag(): Promise<MonetizationMode> {
-  // Check env first if explicitly set
+  // 1. Check environment variable first (admin configuration)
   if (process.env.FEATURE_FLAG_PLANS_MODE !== undefined) {
-    const envVal = parseInt(process.env.FEATURE_FLAG_PLANS_MODE, 10);
-    if (envVal === 0 || envVal === 1) {
-      memoryMonetizationMode = envVal as MonetizationMode;
+    const raw = process.env.FEATURE_FLAG_PLANS_MODE.trim();
+    if (raw === '1') {
+      memoryMonetizationMode = 1;
+      return 1;
+    }
+    if (raw === '0') {
+      memoryMonetizationMode = 0;
+      return 0;
     }
   }
 
+  // 2. Check MongoDB database configuration
   const db = await getDb();
   if (db) {
     try {
