@@ -118,53 +118,60 @@ export const MonetizationBanner: React.FC<MonetizationBannerProps> = ({
   }
 
   // ==========================================
-  // MODE 0: BUY ME A COFFEE (EXACT UI FROM SCREENSHOT)
+  // MODE 0: BUY ME A COFFEE (EXACT MATCH TO SCREENSHOT)
   // ==========================================
   return (
     <div
-      className={`border-4 border-black bg-[#fffef0] p-4 sm:p-5 shadow-[6px_6px_0px_#000000] font-mono space-y-4 ${className}`}
+      className={`border-4 border-black bg-white p-5 sm:p-6 shadow-[6px_6px_0px_#000000] font-mono space-y-4 ${className}`}
     >
       {/* Header Section */}
-      <div className="space-y-2">
-        <div className="flex items-start gap-3">
-          <div className="w-10 h-10 bg-[#FFDD00] text-black font-black flex items-center justify-center border-2 border-black shrink-0">
-            <Coffee className="w-5 h-5 text-black" />
+      <div className="space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="w-11 h-11 bg-[#FFDD00] text-black font-black flex items-center justify-center border-2 border-black shrink-0 shadow-[2px_2px_0px_#000000]">
+              <Coffee className="w-6 h-6 text-black" />
+            </div>
+            <div className="space-y-0.5">
+              <h3 className="text-base sm:text-lg font-black text-black uppercase tracking-tight leading-tight">
+                SUPPORT THE CREATOR // BUY ME A COFFEE
+              </h3>
+              <p className="text-[11px] text-zinc-700 font-bold uppercase tracking-tight leading-tight">
+                HELP KEEP QRJECT HIGH-RESOLUTION GENERATION FREE &amp; OPEN-SOURCE
+              </p>
+            </div>
           </div>
-          <div className="space-y-0.5">
-            <h3 className="text-sm sm:text-base font-black text-black uppercase tracking-tight leading-tight">
-              SUPPORT THE CREATOR // BUY ME A COFFEE
-            </h3>
-            <p className="text-[11px] text-zinc-700 font-bold uppercase tracking-tight leading-tight">
-              HELP KEEP QRJECT HIGH-RESOLUTION GENERATION FREE &amp; OPEN-SOURCE
-            </p>
+
+          <div className="border-2 border-black bg-[#FFDD00] px-2.5 py-1 text-center font-black text-xs text-black shadow-[2px_2px_0px_#000000] shrink-0 leading-tight">
+            <div>FLAG: 0</div>
+            <div>ACTIVE</div>
           </div>
         </div>
 
         {/* Community Supported Tag */}
         <div>
-          <span className="inline-flex items-center gap-1.5 text-[10px] bg-[#ffeef2] border border-rose-300 text-rose-600 px-2 py-0.5 font-black uppercase">
-            <Heart className="w-3 h-3 text-rose-600 fill-rose-600" />
+          <span className="inline-flex items-center gap-1.5 text-xs bg-[#ffeef2] border border-rose-300 text-rose-600 px-2.5 py-1 font-black uppercase">
+            <Heart className="w-3.5 h-3.5 text-rose-600 fill-rose-600" />
             <span>COMMUNITY SUPPORTED</span>
           </span>
         </div>
       </div>
 
-      <div className="border-t-2 border-black pt-3 space-y-2.5">
+      <div className="border-t-2 border-black pt-3 space-y-3">
         {/* Tier 1: 1 ESPRESSO ($3) */}
         <button
           type="button"
           onClick={() => setSelectedTip(3)}
-          className={`w-full border-2 border-black p-3.5 text-left transition-all cursor-pointer block ${
+          className={`w-full border-2 border-black p-4 text-left transition-all cursor-pointer block ${
             selectedTip === 3
               ? 'bg-[#FFDD00] shadow-[3px_3px_0px_#000000]'
               : 'bg-white hover:bg-zinc-50'
           }`}
         >
-          <div className="flex items-center justify-between font-black text-sm text-black">
+          <div className="flex items-center justify-between font-black text-base text-black">
             <span>☕ 1 ESPRESSO</span>
             <span>$3</span>
           </div>
-          <p className="text-[11px] text-zinc-800 mt-1 font-bold">
+          <p className="text-xs text-zinc-800 mt-1 font-bold">
             Quick boost for servers &amp; high-DPI canvas algorithms.
           </p>
         </button>
@@ -173,17 +180,17 @@ export const MonetizationBanner: React.FC<MonetizationBannerProps> = ({
         <button
           type="button"
           onClick={() => setSelectedTip(5)}
-          className={`w-full border-2 border-black p-3.5 text-left transition-all cursor-pointer block ${
+          className={`w-full border-2 border-black p-4 text-left transition-all cursor-pointer block ${
             selectedTip === 5
               ? 'bg-[#FFDD00] shadow-[3px_3px_0px_#000000]'
               : 'bg-white hover:bg-zinc-50'
           }`}
         >
-          <div className="flex items-center justify-between font-black text-sm text-black">
+          <div className="flex items-center justify-between font-black text-base text-black">
             <span>☕☕ 2 COFFEES</span>
             <span>$5</span>
           </div>
-          <p className="text-[11px] text-zinc-800 mt-1 font-bold">
+          <p className="text-xs text-zinc-800 mt-1 font-bold">
             Keeps MongoDB profile persistence &amp; exports blazing fast.
           </p>
         </button>
@@ -192,17 +199,17 @@ export const MonetizationBanner: React.FC<MonetizationBannerProps> = ({
         <button
           type="button"
           onClick={() => setSelectedTip(15)}
-          className={`w-full border-2 border-black p-3.5 text-left transition-all cursor-pointer block ${
+          className={`w-full border-2 border-black p-4 text-left transition-all cursor-pointer block ${
             selectedTip === 15
               ? 'bg-[#FFDD00] shadow-[3px_3px_0px_#000000]'
               : 'bg-white hover:bg-zinc-50'
           }`}
         >
-          <div className="flex items-center justify-between font-black text-sm text-black">
+          <div className="flex items-center justify-between font-black text-base text-black">
             <span>☕☕☕ ROASTER BAG</span>
             <span>$15</span>
           </div>
-          <p className="text-[11px] text-zinc-800 mt-1 font-bold">
+          <p className="text-xs text-zinc-800 mt-1 font-bold">
             Supercharged supporter badge &amp; feature priority requests.
           </p>
         </button>
@@ -210,15 +217,15 @@ export const MonetizationBanner: React.FC<MonetizationBannerProps> = ({
 
       {/* Selected Contribution and Action Buttons */}
       <div className="border-t-2 border-black pt-3 space-y-3">
-        <div className="text-xs text-black font-black">
-          Selected Contribution: <span>${selectedTip}.00</span>
+        <div className="text-sm text-black font-black">
+          Selected Contribution: <span className="text-base">${selectedTip}.00</span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <button
             type="button"
             onClick={handleCopyLink}
-            className="w-full py-2.5 px-3 border-2 border-black bg-white hover:bg-zinc-100 font-black text-xs text-black text-center uppercase transition-all shadow-[2px_2px_0px_#000000] cursor-pointer"
+            className="w-full py-3 px-4 border-2 border-black bg-white hover:bg-zinc-100 font-black text-xs sm:text-sm text-black text-center uppercase transition-all shadow-[3px_3px_0px_#000000] cursor-pointer"
           >
             {copied ? '✓ COPIED DONATION LINK' : 'COPY DONATION LINK'}
           </button>
@@ -227,9 +234,9 @@ export const MonetizationBanner: React.FC<MonetizationBannerProps> = ({
             href="https://ko-fi.com/neerajrekwar2001"
             target="_blank"
             rel="noopener noreferrer"
-            className="w-full py-2.5 px-3 border-2 border-black bg-[#FFDD00] hover:bg-black hover:text-[#FFDD00] font-black text-xs text-black text-center uppercase transition-all shadow-[3px_3px_0px_#000000] flex items-center justify-center gap-1.5 cursor-pointer"
+            className="w-full py-3 px-4 border-2 border-black bg-[#FFDD00] hover:bg-black hover:text-[#FFDD00] font-black text-xs sm:text-sm text-black text-center uppercase transition-all shadow-[3px_3px_0px_#000000] flex items-center justify-center gap-2 cursor-pointer"
           >
-            <Coffee className="w-3.5 h-3.5" />
+            <Coffee className="w-4 h-4 text-black" />
             <span>BUY ME A COFFEE (${selectedTip})</span>
           </a>
         </div>

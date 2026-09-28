@@ -15,7 +15,7 @@ export async function GET() {
     });
   } catch (error: any) {
     console.error('Feature flag GET error:', error);
-    return NextResponse.json({ monetizationMode: 1, error: error.message }, { status: 500 });
+    return NextResponse.json({ monetizationMode: 0, error: error.message }, { status: 500 });
   }
 }
 
