@@ -1,5 +1,5 @@
 {
-  "name": "QRject",
+  "name": "Nedject",
   "description": "genQRstudio — Industrial 300 DPI Photo QR Code Generator with B/W print calibration, multi-format export, and event pass matrix engineering.",
   "capabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

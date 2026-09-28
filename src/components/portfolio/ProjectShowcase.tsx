@@ -20,14 +20,14 @@ interface Project {
 
 const PROJECTS: Project[] = [
   {
-    id: 'qrject-engine',
+    id: 'Nedject-engine',
     category: 'App',
-    title: 'QRJECT // 300 DPI OPTICAL ENGINE',
+    title: 'Nedject // 300 DPI OPTICAL ENGINE',
     tagline: 'High-Density Matrix Generator & Cyber Pass Suite',
     description:
       'Engineered an industrial-grade QR matrix compiler with direct 300 DPI PNG physical chunk injection (pHYs metadata), high-contrast scanner certification, and batch generation of hundreds of attendee passes.',
     url: '#',
-    repo: 'https://github.com/neerajrekwar/qrject',
+    repo: 'https://github.com/neerajrekwar/Nedject',
     status: 'PRODUCTION // LIVE',
     tags: ['NEXT.JS 16', 'REACT 19', 'CANVAS API', 'TAILWIND 4', 'JSZIP'],
     mockupType: 'qr',

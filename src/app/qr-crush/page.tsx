@@ -80,7 +80,7 @@ const SAMPLE_SPECIMENS = [
         JSON.stringify({
           sub: 'neerajrekwar817@gmail.com',
           role: 'SENIOR_SYSTEMS_ARCHITECT',
-          iss: 'qrject.dev',
+          iss: 'Nedject.dev',
           iat: Math.floor(Date.now() / 1000),
           exp: Math.floor(Date.now() / 1000) + 86400,
         })
@@ -102,7 +102,7 @@ const SAMPLE_SPECIMENS = [
     tag: 'STRUCTURED vCARD',
     description: 'Professional developer contact schema with MIME types',
     generatePayload: async () =>
-      'BEGIN:VCARD\nVERSION:4.0\nN:Rekwar;Neeraj;;;\nFN:Neeraj Rekwar\nTITLE:Senior Systems Architect\nEMAIL:neerajrekwar817@gmail.com\nURL:https://qrject.dev\nEND:VCARD',
+      'BEGIN:VCARD\nVERSION:4.0\nN:Rekwar;Neeraj;;;\nFN:Neeraj Rekwar\nTITLE:Senior Systems Architect\nEMAIL:neerajrekwar817@gmail.com\nURL:https://Nedject.dev\nEND:VCARD',
   },
 ];
 
@@ -822,7 +822,7 @@ export default function QRCrushSecretPage() {
                     </button>
                     <button
                       onClick={() => {
-                        setDissectInput('https://qrject.dev/secure/portal?token=nr817-architect');
+                        setDissectInput('https://Nedject.dev/secure/portal?token=nr817-architect');
                         showToast('Loaded Plaintext URL');
                       }}
                       className="px-2 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 text-[10px] font-bold transition-colors cursor-pointer"
@@ -1557,7 +1557,7 @@ export default function QRCrushSecretPage() {
 
       {/* FOOTER */}
       <footer className="border-t border-zinc-800 bg-black py-4 px-4 font-mono text-[10px] text-zinc-500 text-center">
-        <span>QRJECT // CONFIDENTIAL MATRIX FORENSIC TOOL // DIRECT SEARCH-BAR DISPATCH ONLY</span>
+        <span>Nedject // CONFIDENTIAL MATRIX FORENSIC TOOL // DIRECT SEARCH-BAR DISPATCH ONLY</span>
       </footer>
     </div>
   );

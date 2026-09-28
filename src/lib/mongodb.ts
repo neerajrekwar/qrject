@@ -74,7 +74,7 @@ export async function getDb(dbName?: string): Promise<Db | null> {
     const c = await getMongoClient();
     if (!c) return null;
     
-    // If explicit dbName passed, use it; otherwise use default from URI or 'qrject'
+    // If explicit dbName passed, use it; otherwise use default from URI or 'Nedject'
     if (dbName) {
       return c.db(dbName);
     }

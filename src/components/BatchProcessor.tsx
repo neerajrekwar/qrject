@@ -75,7 +75,7 @@ export function BatchProcessor({ baseOptions }: BatchProcessorProps) {
         dataset.push({
           id: `badge-${i}`,
           title: `${seedName} #${i}`,
-          payload: `PASS: DEV-2026-${1000 + i} | NAME: ${seedName} | SUMMIT: Global AI & Next-Gen Summit | VERIFY: https://qrject.dev/v/${1000 + i}`,
+          payload: `PASS: DEV-2026-${1000 + i} | NAME: ${seedName} | SUMMIT: Global AI & Next-Gen Summit | VERIFY: https://Nedject.dev/v/${1000 + i}`,
           status: 'pending',
         });
       }

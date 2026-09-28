@@ -60,8 +60,8 @@ export function GlobalNavbar() {
     refreshUsage();
 
     const handleUsageUpdated = () => refreshUsage();
-    window.addEventListener('qrject_usage_updated', handleUsageUpdated);
-    return () => window.removeEventListener('qrject_usage_updated', handleUsageUpdated);
+    window.addEventListener('Nedject_usage_updated', handleUsageUpdated);
+    return () => window.removeEventListener('Nedject_usage_updated', handleUsageUpdated);
   }, [session]);
 
   const handleToggleMonetizationMode = async (newMode: 1 | 0) => {
@@ -98,7 +98,7 @@ export function GlobalNavbar() {
               className="flex items-center gap-2 bg-black text-[#ccff00] px-2.5 py-1 border-2 border-black font-black text-xs sm:text-sm tracking-tight hover:bg-[#ccff00] hover:text-black transition-colors"
             >
               <QrCode className="w-4 h-4" />
-              <span>QRJECT // genQRstudio</span>
+              <span>Nedject // genQRstudio</span>
             </Link>
 
             <nav className="hidden lg:flex items-center gap-1.5 text-xs">

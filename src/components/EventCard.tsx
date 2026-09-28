@@ -64,7 +64,7 @@ export function EventCard({ qrOptions }: EventCardProps) {
   const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // Generate payload string based on current attendee data
-  const qrPayload = `SUMMIT: Global AI & Next-Gen Developer Summit 2026\nTICKET: ${attendee.ticketId}\nATTENDEE: ${attendee.name}\nROLE: ${attendee.role}\nCOMPANY: ${attendee.company}\nTIERS: ${attendee.selectedTags.join(', ')}\nVERIFY_URL: https://qrject.dev/verify/${attendee.ticketId}`;
+  const qrPayload = `SUMMIT: Global AI & Next-Gen Developer Summit 2026\nTICKET: ${attendee.ticketId}\nATTENDEE: ${attendee.name}\nROLE: ${attendee.role}\nCOMPANY: ${attendee.company}\nTIERS: ${attendee.selectedTags.join(', ')}\nVERIFY_URL: https://Nedject.dev/verify/${attendee.ticketId}`;
 
   // Re-render QR code whenever qrOptions or attendee changes
   useEffect(() => {

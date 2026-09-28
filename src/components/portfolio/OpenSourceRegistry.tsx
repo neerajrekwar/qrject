@@ -27,7 +27,7 @@ const PACKAGES: RegistryPackage[] = [
       'TypeScript QR matrix generator that renders custom geometric modules and injects calibrated 11,811 ppm pHYs metadata for commercial print vendors.',
     installCommand: 'npm i @neeraj/qr-matrix-300dpi',
     docsUrl: '#',
-    repoUrl: 'https://github.com/neerajrekwar/qrject',
+    repoUrl: 'https://github.com/neerajrekwar/Nedject',
     icon: 'package',
   },
   {

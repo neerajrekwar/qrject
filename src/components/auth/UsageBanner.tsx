@@ -50,8 +50,8 @@ export const UsageBanner: React.FC<UsageBannerProps> = ({
       .catch((e) => console.warn('Failed to fetch feature flags:', e));
 
     const handleUpdate = () => refresh();
-    window.addEventListener('qrject_usage_updated', handleUpdate);
-    return () => window.removeEventListener('qrject_usage_updated', handleUpdate);
+    window.addEventListener('Nedject_usage_updated', handleUpdate);
+    return () => window.removeEventListener('Nedject_usage_updated', handleUpdate);
   }, [session]);
 
   const isGuest = !session?.user;

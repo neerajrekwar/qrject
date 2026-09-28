@@ -208,7 +208,7 @@ export default function TipAndPaymentPage() {
 
       {/* 3. FOOTER */}
       <footer className="border-t-2 border-black bg-white py-4 px-4 font-mono text-xs text-center text-zinc-600">
-        QRject · Clean Developer Support Infrastructure
+        Nedject · Clean Developer Support Infrastructure
       </footer>
 
     </div>

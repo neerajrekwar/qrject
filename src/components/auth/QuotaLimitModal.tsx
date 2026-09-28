@@ -61,8 +61,8 @@ export const QuotaLimitModal: React.FC<QuotaLimitModalProps> = ({
       setInternalOpen(true);
     };
 
-    window.addEventListener('qrject_limit_exhausted', handleLimitExhausted);
-    return () => window.removeEventListener('qrject_limit_exhausted', handleLimitExhausted);
+    window.addEventListener('Nedject_limit_exhausted', handleLimitExhausted);
+    return () => window.removeEventListener('Nedject_limit_exhausted', handleLimitExhausted);
   }, []);
 
   const handleCopyLink = () => {

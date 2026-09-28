@@ -136,7 +136,7 @@ export const MonetizationBanner: React.FC<MonetizationBannerProps> = ({
                 SUPPORT THE CREATOR // BUY ME A COFFEE
               </h3>
               <p className="text-[11px] text-zinc-700 font-bold uppercase tracking-tight leading-tight">
-                HELP KEEP QRJECT HIGH-RESOLUTION GENERATION FREE &amp; OPEN-SOURCE
+                HELP KEEP Nedject HIGH-RESOLUTION GENERATION FREE &amp; OPEN-SOURCE
               </p>
             </div>
           </div>

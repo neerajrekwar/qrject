@@ -90,7 +90,7 @@ export async function blendImageWithQRCode(
   options: Partial<PhotoQRBlendOptions> = {}
 ): Promise<PhotoQRBlendResult> {
   const {
-    text = 'https://qrject.dev',
+    text = 'https://Nedject.dev',
     errorCorrectionLevel = 'H',
     contrast = 1.45,
     brightness = 1.0,
@@ -118,7 +118,7 @@ export async function blendImageWithQRCode(
   }
 
   // 2. Generate QR Code Matrix (Level H guarantees 30% error correction tolerance)
-  const qr = QRCode.create(text || 'https://qrject.dev', {
+  const qr = QRCode.create(text || 'https://Nedject.dev', {
     errorCorrectionLevel,
   });
 

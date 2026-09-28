@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "qrject",
+      "name": "Nedject",
       "dependencies": {
         "@types/jsbarcode": "^3.11.4",
         "@types/qrcode": "^1.5.6",

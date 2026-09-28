@@ -595,7 +595,7 @@ export function HeroSection({
                       PRINT RESOLUTION & OPTICAL DENSITY GUIDE
                     </span>
                     <p className="font-mono text-[11px] text-zinc-700 leading-relaxed">
-                      QRject Studio injects physical density metadata directly into the PNG header (pHYs chunk) and rasterizes at precision resolutions:
+                      Nedject Studio injects physical density metadata directly into the PNG header (pHYs chunk) and rasterizes at precision resolutions:
                     </p>
                     <ul className="font-mono text-[11px] text-zinc-800 space-y-1 list-disc pl-4">
                       <li><strong>72 DPI</strong>: Instant digital preview, low bandwidth screen display.</li>

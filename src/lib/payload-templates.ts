@@ -15,7 +15,7 @@ export const RAPID_PAYLOAD_TEMPLATES: PayloadTemplate[] = [
     title: 'Plain Text Message',
     iconName: 'FileText',
     description: 'Direct alphanumeric text message or unformatted note',
-    templateValue: 'QRject High-Resolution Studio · Deterministic 300 DPI Canvas Engine',
+    templateValue: 'Nedject High-Resolution Studio · Deterministic 300 DPI Canvas Engine',
   },
   {
     id: 'text-secret',
@@ -31,7 +31,7 @@ export const RAPID_PAYLOAD_TEMPLATES: PayloadTemplate[] = [
     title: 'Terminal ASCII Banner',
     iconName: 'Terminal',
     description: 'Formatted multi-line terminal system readout',
-    templateValue: '[SYSTEM: ONLINE]\nSTATUS: 300_DPI_CALIBRATED\nHOST: QRJECT_PRO_MATRIX\nCHECKSUM: 0x88AF2C9',
+    templateValue: '[SYSTEM: ONLINE]\nSTATUS: 300_DPI_CALIBRATED\nHOST: Nedject_PRO_MATRIX\nCHECKSUM: 0x88AF2C9',
   },
   {
     id: 'text-quote',
@@ -49,7 +49,7 @@ export const RAPID_PAYLOAD_TEMPLATES: PayloadTemplate[] = [
     title: 'Portfolio Website',
     iconName: 'Globe',
     description: 'Direct link to developer portfolio or personal website',
-    templateValue: 'https://qrject.dev',
+    templateValue: 'https://Nedject.dev',
   },
   {
     id: 'url-github',
@@ -83,7 +83,7 @@ export const RAPID_PAYLOAD_TEMPLATES: PayloadTemplate[] = [
     title: 'Digital Business Card (vCard 3.0)',
     iconName: 'UserCheck',
     description: 'Scannable digital contact card saved directly to phone contacts',
-    templateValue: `BEGIN:VCARD\nVERSION:3.0\nN:Rekwar;Neeraj;;;\nFN:Neeraj Rekwar\nORG:QRject Engineering\nTITLE:Principal Systems Architect\nTEL;TYPE=CELL:+919876543210\nEMAIL;TYPE=WORK:neerajrekwar817@gmail.com\nURL:https://ko-fi.com/neerajrekwar2001\nNOTE:Fullstack Developer & High-DPI Photo QR Architect\nEND:VCARD`,
+    templateValue: `BEGIN:VCARD\nVERSION:3.0\nN:Rekwar;Neeraj;;;\nFN:Neeraj Rekwar\nORG:Nedject Engineering\nTITLE:Principal Systems Architect\nTEL;TYPE=CELL:+919876543210\nEMAIL;TYPE=WORK:neerajrekwar817@gmail.com\nURL:https://ko-fi.com/neerajrekwar2001\nNOTE:Fullstack Developer & High-DPI Photo QR Architect\nEND:VCARD`,
   },
   {
     id: 'contact-email',
@@ -91,7 +91,7 @@ export const RAPID_PAYLOAD_TEMPLATES: PayloadTemplate[] = [
     title: 'Pre-filled Mailto Email',
     iconName: 'Mail',
     description: 'Opens default mail app with recipient, subject, and body',
-    templateValue: 'mailto:neerajrekwar817@gmail.com?subject=Collaboration%20Inquiry&body=Hi%20Neeraj,%20I%20love%20the%20QRject%20platform.',
+    templateValue: 'mailto:neerajrekwar817@gmail.com?subject=Collaboration%20Inquiry&body=Hi%20Neeraj,%20I%20love%20the%20Nedject%20platform.',
   },
   {
     id: 'contact-whatsapp',
@@ -107,7 +107,7 @@ export const RAPID_PAYLOAD_TEMPLATES: PayloadTemplate[] = [
     title: 'Direct SMS Payload',
     iconName: 'Smartphone',
     description: 'SMS uri with predefined recipient and message',
-    templateValue: 'SMSTO:+919876543210:Hello from QRject 300 DPI Scanner!',
+    templateValue: 'SMSTO:+919876543210:Hello from Nedject 300 DPI Scanner!',
   },
 
   // 4. CONNECTIVITY
@@ -117,7 +117,7 @@ export const RAPID_PAYLOAD_TEMPLATES: PayloadTemplate[] = [
     title: 'Secure Wi-Fi (WPA/WPA2)',
     iconName: 'Wifi',
     description: 'Instant zero-tap Wi-Fi network joining format',
-    templateValue: 'WIFI:S:QRject_Studio_5G;T:WPA;P:HighDpiMatrix2026;;',
+    templateValue: 'WIFI:S:Nedject_Studio_5G;T:WPA;P:HighDpiMatrix2026;;',
   },
   {
     id: 'wifi-open',
@@ -125,7 +125,7 @@ export const RAPID_PAYLOAD_TEMPLATES: PayloadTemplate[] = [
     title: 'Open Guest Wi-Fi',
     iconName: 'Wifi',
     description: 'Public guest Wi-Fi hotspot with no password',
-    templateValue: 'WIFI:S:QRject_Guest_Hotspot;T:nopass;;',
+    templateValue: 'WIFI:S:Nedject_Guest_Hotspot;T:nopass;;',
   },
   {
     id: 'geo-pin',
@@ -133,7 +133,7 @@ export const RAPID_PAYLOAD_TEMPLATES: PayloadTemplate[] = [
     title: 'Map Geolocation Coordinates',
     iconName: 'MapPin',
     description: 'Opens Google Maps or Apple Maps to exact GPS latitude/longitude',
-    templateValue: 'geo:28.6139,77.2090?q=28.6139,77.2090(QRject%20Headquarters)',
+    templateValue: 'geo:28.6139,77.2090?q=28.6139,77.2090(Nedject%20Headquarters)',
   },
 
   // 5. COMMERCE & CRYPTO
@@ -169,7 +169,7 @@ export const RAPID_PAYLOAD_TEMPLATES: PayloadTemplate[] = [
     title: 'Calendar Event (iCalendar)',
     iconName: 'Calendar',
     description: 'One-tap calendar add event (.ics standard format)',
-    templateValue: `BEGIN:VEVENT\nSUMMARY:QRject 300 DPI Studio Launch\nDESCRIPTION:High-resolution print calibrated engine release\nLOCATION:Global Online\nDTSTART:20261001T120000Z\nDTEND:20261001T140000Z\nEND:VEVENT`,
+    templateValue: `BEGIN:VEVENT\nSUMMARY:Nedject 300 DPI Studio Launch\nDESCRIPTION:High-resolution print calibrated engine release\nLOCATION:Global Online\nDTSTART:20261001T120000Z\nDTEND:20261001T140000Z\nEND:VEVENT`,
   },
   {
     id: 'event-ticket',

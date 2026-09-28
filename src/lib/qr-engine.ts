@@ -184,7 +184,7 @@ export async function renderQRToCanvas(
 
   // Generate QR Matrix (Level H guarantees 30% error correction tolerance)
   const effectiveEC = (activeImage ? 'H' : errorCorrectionLevel) as ErrorCorrection;
-  const qr = QRCode.create(text || 'https://qrject.dev', {
+  const qr = QRCode.create(text || 'https://Nedject.dev', {
     errorCorrectionLevel: effectiveEC,
   });
 
@@ -768,7 +768,7 @@ export function generateQRSVG(options: QROptions): string {
   const activeImage = photoUrl || logoUrl;
   const isWholeImageMode = Boolean(activeImage && photoQRMode !== 'center-logo');
 
-  const qr = QRCode.create(text || 'https://qrject.dev', {
+  const qr = QRCode.create(text || 'https://Nedject.dev', {
     errorCorrectionLevel: activeImage ? 'H' : (options.errorCorrectionLevel || 'M'),
   });
   const moduleCount = qr.modules.size;

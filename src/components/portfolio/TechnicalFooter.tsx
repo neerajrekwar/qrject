@@ -45,7 +45,7 @@ export function TechnicalFooter({ onOpenQRArtifact }: TechnicalFooterProps) {
             <div className="flex items-center gap-2 pt-2">
               {[
                 { icon: GitBranch, href: 'https://github.com/neerajrekwar', label: 'Git Repos' },
-                { icon: Globe, href: 'https://qrject.dev', label: 'Network' },
+                { icon: Globe, href: 'https://Nedject.dev', label: 'Network' },
                 { icon: Share2, href: '#contact', label: 'Direct Comm' },
                 { icon: Terminal, href: '#registry', label: 'Console' },
               ].map((item) => {

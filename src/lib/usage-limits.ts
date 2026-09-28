@@ -22,8 +22,8 @@ export interface UsageStats {
   toolBreakdown?: Record<string, number>;
 }
 
-const STORAGE_USAGE_KEY = 'qrject_usage_count_v2';
-const STORAGE_BREAKDOWN_KEY = 'qrject_tool_breakdown_v2';
+const STORAGE_USAGE_KEY = 'Nedject_usage_count_v2';
+const STORAGE_BREAKDOWN_KEY = 'Nedject_tool_breakdown_v2';
 
 export function getLocalUsageCount(): number {
   if (typeof window === 'undefined') return 0;
@@ -57,7 +57,7 @@ export function setLocalUsageCount(count: number, toolKey?: ToolKey): void {
     }
 
     // Dispatch custom event for cross-component reactive updates
-    window.dispatchEvent(new Event('qrject_usage_updated'));
+    window.dispatchEvent(new Event('Nedject_usage_updated'));
   } catch (e) {
     console.error('Failed to set local usage count:', e);
   }
@@ -103,7 +103,7 @@ export async function consumeToolQuota(
     // Trigger universal quota exhaustion dialog modal
     if (typeof window !== 'undefined') {
       window.dispatchEvent(
-        new CustomEvent('qrject_limit_exhausted', {
+        new CustomEvent('Nedject_limit_exhausted', {
           detail: { toolKey, stats: currentStats, message },
         })
       );
@@ -135,7 +135,7 @@ export function resetGuestUsageForTesting(): void {
   try {
     localStorage.removeItem(STORAGE_BREAKDOWN_KEY);
   } catch {}
-  window.dispatchEvent(new Event('qrject_usage_updated'));
+  window.dispatchEvent(new Event('Nedject_usage_updated'));
 }
 
 export function syncUsageWithServer(): Promise<UsageStats | null> {

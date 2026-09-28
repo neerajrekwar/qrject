@@ -48,7 +48,7 @@ export function LiveArtifactModal({ isOpen, onClose }: LiveArtifactModalProps) {
 
   // Master QR State
   const [qrOptions, setQrOptions] = useState<QROptions>({
-    text: 'NEERAJ REKWAR // SENIOR SYSTEMS & FULLSTACK ARCHITECT\nPORTFOLIO: https://qrject.dev\nSTATUS: AVAILABLE Q4 2026\nCONTACT: neerajrekwar817@gmail.com',
+    text: 'NEERAJ REKWAR // SENIOR SYSTEMS & FULLSTACK ARCHITECT\nPORTFOLIO: https://Nedject.dev\nSTATUS: AVAILABLE Q4 2026\nCONTACT: neerajrekwar817@gmail.com',
     foregroundColor: '#000000',
     backgroundColor: '#ffffff',
     gradientEnabled: false,
@@ -79,7 +79,7 @@ export function LiveArtifactModal({ isOpen, onClose }: LiveArtifactModalProps) {
   // Sync latest history if window storage changed externally
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'qrject_recent_codes_v2') {
+      if (e.key === 'Nedject_recent_codes_v2') {
         setHistoryItems(loadQRHistory());
       }
     };

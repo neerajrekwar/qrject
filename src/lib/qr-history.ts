@@ -13,7 +13,7 @@ export interface QRHistoryItem {
   userEmail?: string;
 }
 
-const STORAGE_KEY = 'qrject_recent_codes_v2';
+const STORAGE_KEY = 'Nedject_recent_codes_v2';
 const MAX_HISTORY_ITEMS = 25;
 
 export async function generateQRThumbnail(options: QROptions): Promise<string> {
@@ -59,13 +59,13 @@ export function getInitialDefaultSeeds(): QRHistoryItem[] {
     {
       id: 'seed-architect-profile',
       title: 'Principal Architect // Contact Matrix',
-      content: 'NEERAJ REKWAR // SENIOR SYSTEMS & FULLSTACK ARCHITECT\nPORTFOLIO: https://qrject.dev\nSTATUS: AVAILABLE Q4 2026\nCONTACT: neerajrekwar817@gmail.com',
+      content: 'NEERAJ REKWAR // SENIOR SYSTEMS & FULLSTACK ARCHITECT\nPORTFOLIO: https://Nedject.dev\nSTATUS: AVAILABLE Q4 2026\nCONTACT: neerajrekwar817@gmail.com',
       timestamp: Date.now() - 3600000 * 8,
       dateFormatted: 'Today, 8h ago',
       contrast: 21.0,
       format: '600 DPI Master',
       options: {
-        text: 'NEERAJ REKWAR // SENIOR SYSTEMS & FULLSTACK ARCHITECT\nPORTFOLIO: https://qrject.dev\nSTATUS: AVAILABLE Q4 2026\nCONTACT: neerajrekwar817@gmail.com',
+        text: 'NEERAJ REKWAR // SENIOR SYSTEMS & FULLSTACK ARCHITECT\nPORTFOLIO: https://Nedject.dev\nSTATUS: AVAILABLE Q4 2026\nCONTACT: neerajrekwar817@gmail.com',
         foregroundColor: '#000000',
         backgroundColor: '#ffffff',
         gradientEnabled: false,
@@ -128,7 +128,7 @@ export function loadQRHistory(): QRHistoryItem[] {
           if (toAdd.length > 0) {
             const merged = [...toAdd, ...localItems].slice(0, MAX_HISTORY_ITEMS);
             localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
-            window.dispatchEvent(new Event('qrject_history_updated'));
+            window.dispatchEvent(new Event('Nedject_history_updated'));
           }
         }
       })

@@ -10,7 +10,7 @@ export const authOptions: NextAuthOptions = {
     strategy: 'jwt',
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
-  secret: process.env.NEXTAUTH_SECRET || 'qrject-super-secret-nextauth-key-2026',
+  secret: process.env.NEXTAUTH_SECRET || 'Nedject-super-secret-nextauth-key-2026',
   providers: [
     // 1. Google OAuth Provider
     GoogleProvider({
