@@ -41,6 +41,11 @@ export interface WinterArcGoalStandard {
   targetStandard: string;
   currentStatus: string;
   percentAccomplished: number;
+  baselineNum?: number;
+  currentNum?: number;
+  targetNum?: number;
+  unit?: string;
+  notes?: string;
 }
 
 export interface WinterArcChallengeState {
@@ -239,45 +244,118 @@ export function generateInitial90DayMatrix(): WinterArcDayRecord[] {
   return days;
 }
 
-// 4 CORE WINTER ARC STANDARDS
+// CORE WINTER ARC STANDARDS & GOAL METRICS
 export const DEFAULT_WINTER_ARC_STANDARDS: WinterArcGoalStandard[] = [
   {
     id: 'wa-std-1',
     name: 'Body Fat & Lean Mass Protocol',
     category: 'Body Transformation',
-    startingBaseline: '18% Body Fat / 78 kg',
-    targetStandard: '12% Body Fat / 76 kg Athletic',
-    currentStatus: '17.5% BF / 77.8 kg',
+    startingBaseline: '18% Body Fat',
+    targetStandard: '12% Body Fat',
+    currentStatus: '17.2% Body Fat',
     percentAccomplished: 15,
+    baselineNum: 18,
+    currentNum: 17.2,
+    targetNum: 12,
+    unit: '%',
+    notes: 'DEXA calibrated / weekly skinfold check',
   },
   {
     id: 'wa-std-2',
     name: '10,000 Steps + Zone 2 Daily Habit',
     category: 'Physical Training',
-    startingBaseline: '5,200 Steps avg',
-    targetStandard: '10,000+ Steps Daily (90/90 Days)',
-    currentStatus: 'Tracking daily (Streak: 0)',
-    percentAccomplished: 10,
+    startingBaseline: '5,000 Steps',
+    targetStandard: '10,000 Steps Daily',
+    currentStatus: '8,500 Steps',
+    percentAccomplished: 70,
+    baselineNum: 5000,
+    currentNum: 8500,
+    targetNum: 10000,
+    unit: 'steps',
+    notes: 'GPS step counter / post-meal outdoor walks',
   },
   {
     id: 'wa-std-3',
-    name: 'Deep Work Mastery (5 Hours / Day)',
+    name: 'Deep Work Focus (5 Hours / Day)',
     category: 'Deep Work / Skill',
-    startingBaseline: '2 Hours fragmented',
-    targetStandard: '300 Mins High-Output Focus / Day',
-    currentStatus: 'Locked to 09:00 & 13:00 blocks',
-    percentAccomplished: 20,
+    startingBaseline: '2.0 Hours',
+    targetStandard: '5.0 Hours Locked',
+    currentStatus: '3.8 Hours',
+    percentAccomplished: 60,
+    baselineNum: 2,
+    currentNum: 3.8,
+    targetNum: 5,
+    unit: 'hours',
+    notes: 'Zero distraction, airplane mode, Pomodoro cycles',
   },
   {
     id: 'wa-std-4',
-    name: '7h Sleep & Circadian Strictness',
+    name: '7.5h Sleep & Circadian Strictness',
     category: 'Nutrition / Sleep',
-    startingBaseline: 'Midnight irregular sleep',
-    targetStandard: '22:00 to 05:00 (100% adherence)',
-    currentStatus: 'Cold dark chamber configured',
-    percentAccomplished: 25,
+    startingBaseline: '5.5 Hours',
+    targetStandard: '7.5 Hours Clean Sleep',
+    currentStatus: '7.0 Hours',
+    percentAccomplished: 75,
+    baselineNum: 5.5,
+    currentNum: 7.0,
+    targetNum: 7.5,
+    unit: 'hours',
+    notes: 'Dark chamber, mouth tape, 19°C cool room',
+  },
+  {
+    id: 'wa-std-5',
+    name: 'Daily Cold Exposure & Plunge',
+    category: 'Mental Hardness',
+    startingBaseline: '0 Mins',
+    targetStandard: '5.0 Mins Ice Water',
+    currentStatus: '3.0 Mins',
+    percentAccomplished: 60,
+    baselineNum: 0,
+    currentNum: 3.0,
+    targetNum: 5.0,
+    unit: 'mins',
+    notes: 'Controlled box breathing during immersion',
+  },
+  {
+    id: 'wa-std-6',
+    name: 'Pure Hydration Protocol',
+    category: 'Nutrition / Sleep',
+    startingBaseline: '1.5 Liters',
+    targetStandard: '4.0 Liters Daily',
+    currentStatus: '3.5 Liters',
+    percentAccomplished: 80,
+    baselineNum: 1.5,
+    currentNum: 3.5,
+    targetNum: 4.0,
+    unit: 'liters',
+    notes: 'Electrolyte mineral salts + iced filtered water',
   },
 ];
+
+/**
+ * Calculates Progress Percentage towards measurable standard/goal.
+ */
+export function computeWinterArcGoalProgress(goal: WinterArcGoalStandard): number {
+  if (
+    goal.baselineNum !== undefined &&
+    goal.targetNum !== undefined &&
+    goal.currentNum !== undefined
+  ) {
+    const { baselineNum, currentNum, targetNum } = goal;
+    if (targetNum === baselineNum) return 100;
+
+    let progress = 0;
+    if (targetNum > baselineNum) {
+      progress = ((currentNum - baselineNum) / (targetNum - baselineNum)) * 100;
+    } else {
+      progress = ((baselineNum - currentNum) / (baselineNum - targetNum)) * 100;
+    }
+
+    return Math.max(0, Math.min(100, Math.round(progress)));
+  }
+
+  return Math.max(0, Math.min(100, goal.percentAccomplished || 0));
+}
 
 // Helper calculations
 export function calculateWinterArcAdherence(slots: WinterArc24HrSlot[]) {

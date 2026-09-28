@@ -28,6 +28,7 @@ import {
   WinterArcChallengeState,
   WinterArc24HrSlot,
   WinterArcDayRecord,
+  WinterArcGoalStandard,
   WinterArcViewMode,
   WinterArcPrintStyle,
   WinterArcOrientation,
@@ -37,6 +38,7 @@ import {
   DEFAULT_WINTER_ARC_STANDARDS,
   calculateWinterArcAdherence,
   calculate90DayProgress,
+  computeWinterArcGoalProgress,
   exportWinterArcToPDF,
   exportWinterArcMeasuringSheetPDF,
   renderWinterArcToCanvas,
@@ -45,6 +47,7 @@ import {
 import { WinterArcProgressionChart } from '@/components/winter-arc/WinterArcProgressionChart';
 import { WinterArcMeasuringChartPrint } from '@/components/winter-arc/WinterArcMeasuringChartPrint';
 import { WinterArcAutomatedProgressGraph } from '@/components/winter-arc/WinterArcAutomatedProgressGraph';
+import { WinterArcMeasurableGoalsAnalysis } from '@/components/winter-arc/WinterArcMeasurableGoalsAnalysis';
 
 export type ManagementMode = 'digital_web' | 'print_paper';
 
@@ -101,7 +104,7 @@ export default function WinterArcPage() {
     return saved?.dayMatrix || generateInitial90DayMatrix();
   });
 
-  const [standards] = useState(() => {
+  const [standards, setStandards] = useState<WinterArcGoalStandard[]>(() => {
     const saved = getSavedWinterArcState();
     return saved?.standards || DEFAULT_WINTER_ARC_STANDARDS;
   });
@@ -315,6 +318,41 @@ export default function WinterArcPage() {
       })
     );
     showToast(`Logged Day ${targetDayNum} with ${stats24h.percent}% score (${stats24h.isPassing80 ? 'PASSED 80%' : 'BELOW 80%'})`);
+  };
+
+  // Goal & Target Handlers
+  const handleUpdateGoalCurrent = (goalId: string, delta: number) => {
+    setStandards((prev) =>
+      prev.map((g) => {
+        if (g.id !== goalId) return g;
+        if (g.currentNum !== undefined) {
+          const nextVal = Math.round((g.currentNum + delta) * 10) / 10;
+          const updated = {
+            ...g,
+            currentNum: Math.max(0, nextVal),
+            currentStatus: `${Math.max(0, nextVal)} ${g.unit || ''}`,
+          };
+          updated.percentAccomplished = computeWinterArcGoalProgress(updated);
+          return updated;
+        }
+        return g;
+      })
+    );
+  };
+
+  const handleDeleteGoal = (goalId: string) => {
+    setStandards((prev) => prev.filter((g) => g.id !== goalId));
+    showToast('Removed measurable target standard');
+  };
+
+  const handleAddGoal = (newGoal: WinterArcGoalStandard) => {
+    setStandards((prev) => [...prev, newGoal]);
+    showToast(`Added target standard: "${newGoal.name}"`);
+  };
+
+  const handleResetGoals = () => {
+    setStandards(DEFAULT_WINTER_ARC_STANDARDS);
+    showToast('Reset targets to core standards');
   };
 
   // Current dataset bundle
@@ -1390,6 +1428,21 @@ export default function WinterArcPage() {
             onClearMatrix={handleClearMatrix}
             onLoadSampleTrajectory={handleLoadSampleTrajectory}
             onLoadDemoPass={handleLoadDemoPass}
+          />
+        </div>
+
+        {/* ========================================================================= */}
+        {/* SECTION 03: MEASURABLE TARGETS & GOALS ANALYSIS (%)                       */}
+        {/* Rendered in both Base Digital and Print Paper at the last section         */}
+        {/* ========================================================================= */}
+        <div className="pt-2 print:pt-0">
+          <WinterArcMeasurableGoalsAnalysis
+            standards={standards}
+            printStyle={printStyle}
+            onUpdateGoalCurrent={handleUpdateGoalCurrent}
+            onDeleteGoal={handleDeleteGoal}
+            onAddGoal={handleAddGoal}
+            onResetGoals={handleResetGoals}
           />
         </div>
 
