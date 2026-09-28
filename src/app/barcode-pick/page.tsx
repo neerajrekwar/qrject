@@ -30,6 +30,7 @@ import {
   exportBarcodePDF,
   sanitizeBarcodePayload,
 } from '@/lib/barcode-engine';
+import { UsageBanner } from '@/components/auth/UsageBanner';
 
 const QUICK_PRESETS: { label: string; format: BarcodeFormat; payload: string; desc: string }[] = [
   {
@@ -244,6 +245,9 @@ export default function BarcodePickPage() {
       {/* 2. MAIN APPLICATION WORKSPACE */}
       <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8">
         
+        {/* QUOTA & FEATURE FLAG MONETIZATION BANNER */}
+        <UsageBanner />
+
         {/* Dossier Banner */}
         <div className="space-y-3">
           <div className="inline-flex items-center gap-2 border-2 border-black bg-white px-3 py-1.5 shadow-[3px_3px_0px_#000000]">

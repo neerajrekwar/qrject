@@ -44,6 +44,7 @@ import {
   exportFitnessToA4_PDF,
   renderFitnessA4ToCanvas,
 } from '@/lib/fitness-glass-engine';
+import { UsageBanner } from '@/components/auth/UsageBanner';
 
 export type ManagementMode = 'digital_web' | 'print_paper';
 
@@ -655,6 +656,11 @@ export default function FitnessGlassPage() {
                 ISO A4 Paper Ready · Clean empty boxes for manual black ballpoint pen ticking · Manual daily score lines · Auto-landscape (&gt;12) or portrait (&lt;=11).
               </p>
             </button>
+          </div>
+
+          {/* AUTH QUOTA & FEATURE FLAG MONETIZATION BANNER (PRINT HIDDEN) */}
+          <div className="print:hidden">
+            <UsageBanner />
           </div>
 
           {/* Special Winter Arc 2026 Callout Banner */}

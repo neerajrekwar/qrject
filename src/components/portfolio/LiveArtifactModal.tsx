@@ -27,6 +27,7 @@ import { ExportControlsBar } from './ExportControlsBar';
 import { ExportFormat } from '@/lib/qr-export';
 import { PHOTO_PRESETS } from '@/lib/photo-presets';
 import { blendImageWithQRCode, PhotoQRBlendResult } from '@/lib/photo-qr-blend';
+import { UsageBanner } from '@/components/auth/UsageBanner';
 
 interface LiveArtifactModalProps {
   isOpen: boolean;
@@ -456,7 +457,11 @@ export function LiveArtifactModal({ isOpen, onClose }: LiveArtifactModalProps) {
         </div>
 
         {/* 6. Modal Scrollable Body */}
-        <div className="p-4 sm:p-6 overflow-y-auto flex-1 bg-[#0a0d16] flex justify-center">
+        <div className="p-4 sm:p-6 overflow-y-auto flex-1 bg-[#0a0d16] flex flex-col items-center">
+          <div className="w-full max-w-6xl mb-4">
+            <UsageBanner />
+          </div>
+
           {activeTab === 'event' && (
             <div className="w-full flex justify-center py-4">
               <EventCard qrOptions={qrOptions} />

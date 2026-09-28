@@ -22,6 +22,7 @@ import {
   triggerFileDownload,
 } from '@/lib/photo-dpi-engine';
 import { PHOTO_PRESETS } from '@/lib/photo-presets';
+import { UsageBanner } from '@/components/auth/UsageBanner';
 
 const PRINT_SIZES = [
   { label: '4" × 6" Postcard', w: 4, h: 6, desc: '1200×1800 px @ 300 DPI' },
@@ -232,6 +233,9 @@ export default function NormalDPIPhotoPage() {
             </p>
           </div>
         </div>
+
+        {/* QUOTA & FEATURE FLAG MONETIZATION BANNER */}
+        <UsageBanner />
 
         {/* Workspace Grid Container */}
         <div className="border-2 border-black bg-white shadow-[8px_8px_0px_#000000] grid grid-cols-1 lg:grid-cols-12 overflow-hidden">

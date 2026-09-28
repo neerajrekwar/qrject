@@ -48,6 +48,7 @@ import { WinterArcProgressionChart } from '@/components/winter-arc/WinterArcProg
 import { WinterArcMeasuringChartPrint } from '@/components/winter-arc/WinterArcMeasuringChartPrint';
 import { WinterArcAutomatedProgressGraph } from '@/components/winter-arc/WinterArcAutomatedProgressGraph';
 import { WinterArcMeasurableGoalsAnalysis } from '@/components/winter-arc/WinterArcMeasurableGoalsAnalysis';
+import { UsageBanner } from '@/components/auth/UsageBanner';
 
 export type ManagementMode = 'digital_web' | 'print_paper';
 
@@ -688,6 +689,11 @@ export default function WinterArcPage() {
             </button>
           </div>
 
+        </div>
+
+        {/* AUTH & QUOTA BANNER + MONETIZATION FEATURE FLAG (PRINT HIDDEN) */}
+        <div className="print:hidden">
+          <UsageBanner />
         </div>
 
         {/* VIEW NAVIGATION & PRINT CONFIGURATION BAR */}
