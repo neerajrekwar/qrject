@@ -83,6 +83,7 @@ export function GlobalNavbar() {
     { href: '/barcode-pick', label: 'Barcode Pick' },
     { href: '/fitness-glass', label: 'Fitness Glass' },
     { href: '/fitness-glass/winter-arc-2026', label: 'Winter Arc 2026' },
+    { href: '/tip', label: monetizationMode === 1 ? 'Plans' : 'Tip & Coffee' },
   ];
 
   return (
@@ -120,7 +121,7 @@ export function GlobalNavbar() {
             </nav>
           </div>
 
-          {/* Right Action Bar: Quota Counter + Feature Flag Mode + User Profile / Auth */}
+          {/* Right Action Bar: Quota Counter + Upgrade/Coffee Button + User Profile / Auth */}
           <div className="flex items-center gap-2 flex-wrap">
             
             {/* 1. Quota Limit Counter */}
@@ -153,29 +154,27 @@ export function GlobalNavbar() {
               )}
             </div>
 
-            {/* 2. Feature Flag Indicator & Switch (1 = Plans, 0 = Buy Me a Coffee) */}
-            <button
-              type="button"
-              onClick={() => handleToggleMonetizationMode(monetizationMode === 1 ? 0 : 1)}
-              className={`border-2 border-black px-2 py-1 text-xs font-black flex items-center gap-1.5 cursor-pointer transition-all shadow-[1px_1px_0px_#000000] ${
+            {/* 2. Clean Monetization Action Link (Conditional without internal debug wording) */}
+            <Link
+              href="/tip"
+              className={`border-2 border-black px-2.5 py-1 text-xs font-black flex items-center gap-1.5 transition-all shadow-[1px_1px_0px_#000000] cursor-pointer ${
                 monetizationMode === 1
-                  ? 'bg-white text-black hover:bg-zinc-100'
+                  ? 'bg-white text-black hover:bg-black hover:text-[#ccff00]'
                   : 'bg-[#FFDD00] text-black hover:bg-black hover:text-[#FFDD00]'
               }`}
-              title="Click to toggle Feature Flag in Database (1 = Plans, 0 = Buy Me a Coffee)"
             >
               {monetizationMode === 1 ? (
                 <>
-                  <Layers className="w-3.5 h-3.5 text-black" />
-                  <span className="text-[11px]">FLAG: PLANS [1]</span>
+                  <Zap className="w-3.5 h-3.5 text-amber-500" />
+                  <span className="text-[11px]">UPGRADE PLAN</span>
                 </>
               ) : (
                 <>
                   <Coffee className="w-3.5 h-3.5 text-amber-900" />
-                  <span className="text-[11px]">FLAG: COFFEE [0]</span>
+                  <span className="text-[11px]">BUY ME A COFFEE</span>
                 </>
               )}
-            </button>
+            </Link>
 
             {/* 3. User Authentication Button / Profile Pill */}
             {session?.user ? (

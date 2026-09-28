@@ -47,7 +47,7 @@ export const MonetizationBanner: React.FC<MonetizationBannerProps> = ({
               ★
             </span>
             <h3 className="text-sm font-black text-black uppercase tracking-tight">
-              TIER PLANS &amp; LIMITS UPGRADE (FLAG: 1 ACTIVE)
+              PRO MEMBERSHIP &amp; PASS GENERATION TIERS
             </h3>
           </div>
           <span className="text-[10px] bg-black text-[#ccff00] px-2 py-0.5 font-bold uppercase self-start sm:self-auto">
@@ -108,14 +108,13 @@ export const MonetizationBanner: React.FC<MonetizationBannerProps> = ({
               </li>
             </ul>
 
-            <button
-              type="button"
-              onClick={onOpenUpgrade}
+            <a
+              href="/tip"
               className="w-full mt-2 py-2 border-2 border-black bg-black text-[#ccff00] hover:bg-[#ccff00] hover:text-black font-black text-xs uppercase transition-all cursor-pointer shadow-[2px_2px_0px_#000000] flex items-center justify-center gap-1.5"
             >
               <span>UPGRADE TO PRO</span>
               <ArrowRight className="w-3.5 h-3.5" />
-            </button>
+            </a>
           </div>
         </div>
       </div>
@@ -137,9 +136,6 @@ export const MonetizationBanner: React.FC<MonetizationBannerProps> = ({
           <div>
             <h3 className="text-sm font-black text-black uppercase tracking-tight flex items-center gap-1.5">
               <span>SUPPORT THE CREATOR // BUY ME A COFFEE</span>
-              <span className="text-[10px] bg-[#FFDD00] border border-black px-1.5 py-0.2 text-black font-bold">
-                FLAG: 0 ACTIVE
-              </span>
             </h3>
             <p className="text-[11px] text-zinc-600 font-bold">
               HELP KEEP QRJECT HIGH-RESOLUTION GENERATION FREE &amp; OPEN-SOURCE
@@ -222,9 +218,7 @@ export const MonetizationBanner: React.FC<MonetizationBannerProps> = ({
           </button>
 
           <a
-            href="https://buymeacoffee.com"
-            target="_blank"
-            rel="noopener noreferrer"
+            href="/tip"
             className="px-4 py-1.5 border-2 border-black bg-[#FFDD00] hover:bg-black hover:text-[#FFDD00] font-black text-xs uppercase transition-all shadow-[2px_2px_0px_#000000] flex items-center gap-1.5"
           >
             <Coffee className="w-3.5 h-3.5" />

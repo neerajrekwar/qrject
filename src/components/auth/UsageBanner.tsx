@@ -126,11 +126,13 @@ export const UsageBanner: React.FC<UsageBannerProps> = ({
         )}
       </div>
 
-      {/* 2. Feature Flag Conditional Formatting: Plans vs Buy Me a Coffee */}
+      {/* 2. Supporter Tipping & Pro Upgrade Tiers */}
       {showMonetization && (
         <MonetizationBanner
           monetizationMode={monetizationMode}
-          onOpenUpgrade={() => setShowAuthModal(true)}
+          onOpenUpgrade={() => {
+            window.location.href = '/tip';
+          }}
         />
       )}
 

@@ -17,6 +17,7 @@ import {
   Save,
   RotateCcw,
   Zap,
+  ExternalLink,
 } from 'lucide-react';
 import { getUsageStats, resetGuestUsageForTesting, UsageStats } from '@/lib/usage-limits';
 
@@ -206,49 +207,41 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           </div>
         </div>
 
-        {/* 2. Feature Flags Database Switch (1 = Plans, 0 = Buy Me a Coffee) */}
-        <div className="border-2 border-black bg-[#fafaf5] p-3 space-y-2">
-          <div className="flex items-center justify-between text-xs font-black">
-            <span className="flex items-center gap-1.5 text-black uppercase">
-              <Zap className="w-3.5 h-3.5 text-amber-500" />
-              <span>FEATURE FLAG (DATABASE KEY: 1 vs 0)</span>
-            </span>
-            <span className="text-[10px] font-mono bg-black text-white px-1.5 py-0.5">
-              VALUE: {monetizationMode}
-            </span>
+        {/* 2. Membership & Support Quick Action */}
+        <div className="border-2 border-black bg-[#fafaf5] p-3 flex items-center justify-between gap-3">
+          <div>
+            <div className="text-xs font-black uppercase text-black flex items-center gap-1.5">
+              {monetizationMode === 1 ? (
+                <>
+                  <Zap className="w-3.5 h-3.5 text-amber-500" />
+                  <span>PRO MEMBERSHIP &amp; UPGRADE</span>
+                </>
+              ) : (
+                <>
+                  <Coffee className="w-3.5 h-3.5 text-amber-800" />
+                  <span>SUPPORT CREATOR &amp; TIP</span>
+                </>
+              )}
+            </div>
+            <p className="text-[10px] text-zinc-600 mt-0.5">
+              {monetizationMode === 1
+                ? 'Unlock 600 DPI, vector exports, and unlimited volume.'
+                : 'Help keep 300 DPI high-resolution generation free & open.'}
+            </p>
           </div>
 
-          <p className="text-[10px] text-zinc-600">
-            Manual conditional formatting toggle: <strong>1</strong> activates Plans &amp; Upgrades, <strong>0</strong> activates Buy Me a Coffee.
-          </p>
-
-          <div className="grid grid-cols-2 gap-2 pt-1 font-mono text-xs font-black">
-            <button
-              type="button"
-              onClick={() => onToggleMonetizationMode && onToggleMonetizationMode(1)}
-              className={`p-2 border-2 border-black flex items-center justify-center gap-1.5 cursor-pointer uppercase transition-all ${
-                monetizationMode === 1
-                  ? 'bg-black text-[#ccff00] shadow-[2px_2px_0px_#000000]'
-                  : 'bg-white text-black hover:bg-zinc-100'
-              }`}
-            >
-              <Layers className="w-3.5 h-3.5" />
-              <span>[1] PLANS MODE</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onToggleMonetizationMode && onToggleMonetizationMode(0)}
-              className={`p-2 border-2 border-black flex items-center justify-center gap-1.5 cursor-pointer uppercase transition-all ${
-                monetizationMode === 0
-                  ? 'bg-[#FFDD00] text-black shadow-[2px_2px_0px_#000000]'
-                  : 'bg-white text-black hover:bg-zinc-100'
-              }`}
-            >
-              <Coffee className="w-3.5 h-3.5 text-amber-800" />
-              <span>[0] BUY ME COFFEE</span>
-            </button>
-          </div>
+          <a
+            href="/tip"
+            onClick={onClose}
+            className={`px-3 py-1.5 border-2 border-black font-mono text-xs font-black uppercase transition-all shadow-[2px_2px_0px_#000000] cursor-pointer shrink-0 flex items-center gap-1 ${
+              monetizationMode === 1
+                ? 'bg-black text-[#ccff00] hover:bg-[#ccff00] hover:text-black'
+                : 'bg-[#FFDD00] text-black hover:bg-black hover:text-[#FFDD00]'
+            }`}
+          >
+            <span>{monetizationMode === 1 ? 'VIEW PLANS' : 'BUY COFFEE'}</span>
+            <ExternalLink className="w-3 h-3" />
+          </a>
         </div>
 
         {/* 3. User Profile Edit Form (strictly name, email, dob, occupation) */}
