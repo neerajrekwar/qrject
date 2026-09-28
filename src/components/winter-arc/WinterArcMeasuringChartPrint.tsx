@@ -126,7 +126,7 @@ export const WinterArcMeasuringChartPrint: React.FC<WinterArcMeasuringChartPrint
         </div>
       </div>
 
-      {/* 3. Raw Trend Coordinate Measuring Chart Grid */}
+      {/* 3. AUTOMATED ACTIVITY PROGRESS GRAPH (TILL LAST DAY) Coordinate Measuring Chart Grid */}
       <div className="border-2 border-black bg-[#fefefe] p-3 space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black pb-1.5">
           <div className="flex items-center gap-2">
@@ -134,11 +134,11 @@ export const WinterArcMeasuringChartPrint: React.FC<WinterArcMeasuringChartPrint
               COORDINATE GRID 01
             </span>
             <span className="font-black text-xs uppercase tracking-tight text-black">
-              DAILY SCORE PERCENTAGE PLOTTING SYSTEM (DAYS 01 – 90)
+              AUTOMATED ACTIVITY PROGRESS GRAPH (TILL LAST DAY)
             </span>
           </div>
           <div className="text-[10px] text-zinc-600 font-bold">
-            X-AXIS: DAYS 01-90 · Y-AXIS: SCORE 0-100% · RED LINE: 80% PASS THRESHOLD
+            DYNAMIC ADHERENCE CURVE (DAYS 01–90) · RED 80% TARGET THRESHOLD LINE (MINIMUM BENCHMARK)
           </div>
         </div>
 

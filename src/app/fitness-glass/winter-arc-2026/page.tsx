@@ -44,6 +44,7 @@ import {
 } from '@/lib/winter-arc-engine';
 import { WinterArcProgressionChart } from '@/components/winter-arc/WinterArcProgressionChart';
 import { WinterArcMeasuringChartPrint } from '@/components/winter-arc/WinterArcMeasuringChartPrint';
+import { WinterArcAutomatedProgressGraph } from '@/components/winter-arc/WinterArcAutomatedProgressGraph';
 
 export type ManagementMode = 'digital_web' | 'print_paper';
 
@@ -695,6 +696,18 @@ export default function WinterArcPage() {
               >
                 <Target className="w-3.5 h-3.5" />
                 <span>STANDARDS &amp; PHASES</span>
+              </button>
+
+              <button
+                onClick={() => setActiveView('measuring_report')}
+                className={`px-3 py-1.5 border-2 border-black font-mono text-xs font-black transition-all cursor-pointer uppercase flex items-center gap-1.5 ${
+                  activeView === 'measuring_report'
+                    ? 'bg-black text-[#ccff00] shadow-[2px_2px_0px_#000000]'
+                    : 'bg-[#fafaf8] text-black hover:bg-zinc-100'
+                }`}
+              >
+                <Activity className="w-3.5 h-3.5" />
+                <span>MEASURING REPORT (PRINT LAST PAGE)</span>
               </button>
             </div>
 
@@ -1361,6 +1374,39 @@ export default function WinterArcPage() {
               ))}
             </div>
           </section>
+        )}
+
+        {/* ========================================================================= */}
+        {/* AUTOMATED ACTIVITY PROGRESS GRAPH (TILL LAST DAY)                         */}
+        {/* Rendered in both Base Digital and Print Paper at the last section         */}
+        {/* ========================================================================= */}
+        <div className="pt-2 print:pt-0">
+          <WinterArcAutomatedProgressGraph
+            dayMatrix={dayMatrix}
+            slots24h={slots24h}
+            printStyle={printStyle}
+            onUpdateDayScore={handleUpdateDayScore}
+            onToggleDay={handleToggleDay}
+            onClearMatrix={handleClearMatrix}
+            onLoadSampleTrajectory={handleLoadSampleTrajectory}
+            onLoadDemoPass={handleLoadDemoPass}
+          />
+        </div>
+
+        {/* ========================================================================= */}
+        {/* ATTACHED MEASURING SHEET PAGE (PRINT PAPER LAST ATTACHED PAGE)            */}
+        {/* ========================================================================= */}
+        {(managementMode === 'print_paper' || activeView === 'measuring_report') && (
+          <div className="pt-4 print:pt-0">
+            <WinterArcMeasuringChartPrint
+              athleteName={athleteName}
+              challengeTitle={challengeTitle}
+              dayMatrix={dayMatrix}
+              printStyle={printStyle}
+              standards={standards}
+              isStandalone={false}
+            />
+          </div>
         )}
 
       </main>
