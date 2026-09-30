@@ -137,6 +137,41 @@ export async function exchangeCodeForTokens(
   }
 
   const data = await response.json();
+  let userEmail: string | undefined;
+  let userName: string | undefined;
+  let userImage: string | undefined;
+
+  if (data.id_token) {
+    try {
+      const parts = data.id_token.split('.');
+      if (parts.length >= 2) {
+        const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+        userEmail = payload.email;
+        userName = payload.name;
+        userImage = payload.picture;
+      }
+    } catch (parseErr) {
+      console.warn('Could not parse id_token in exchangeCodeForTokens:', parseErr);
+    }
+  }
+
+  // Fallback to Google userinfo endpoint if email was not in id_token
+  if (!userEmail && data.access_token) {
+    try {
+      const userinfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${data.access_token}` },
+      });
+      if (userinfoRes.ok) {
+        const userInfo = await userinfoRes.json();
+        userEmail = userInfo.email;
+        userName = userInfo.name || userName;
+        userImage = userInfo.picture || userImage;
+      }
+    } catch (uErr) {
+      console.warn('Could not fetch userinfo in exchangeCodeForTokens:', uErr);
+    }
+  }
+
   return {
     access_token: data.access_token,
     refresh_token: data.refresh_token,
@@ -145,6 +180,9 @@ export async function exchangeCodeForTokens(
     scope: data.scope,
     id_token: data.id_token,
     obtained_at: Date.now(),
+    userEmail,
+    userName,
+    userImage,
   };
 }
 
@@ -263,121 +301,325 @@ export async function ensureRawDataSource(
 }
 
 // ============================================================================
-// 3. Helper: Fetch Aggregated Daily Summaries
+// 3. Helper: Fetch Latest Body Metrics & Aggregated Daily Summaries
 // ============================================================================
 
 /**
- * Fetches aggregated daily summaries across Steps, Weight, and Blood Pressure
+ * Fetches the user's latest recorded body metrics (weight, height, blood pressure)
+ * directly from Google Fit data sources and datasets.
+ * In the Google Fit app, users typically enter their height or weight in their profile once,
+ * which may fall outside the recent 7-day query window.
+ */
+export async function fetchLatestBodyMetrics(accessToken: string): Promise<{
+  weightKg: number | null;
+  heightMeters: number | null;
+  bloodPressure: DailySummaryMetric['bloodPressure'] | null;
+}> {
+  let weightKg: number | null = null;
+  let heightMeters: number | null = null;
+  let bloodPressure: DailySummaryMetric['bloodPressure'] = null;
+
+  const nowNanos = millisToNanosStr(Date.now());
+  const maxLookbackNanos = millisToNanosStr(Date.now() - 365 * 24 * 60 * 60 * 1000); // 1 year lookback
+
+  const fetchDatasetPoints = async (dataSourceId: string) => {
+    try {
+      const url = `${GOOGLE_FIT_BASE_URL}/dataSources/${encodeURIComponent(dataSourceId)}/datasets/${maxLookbackNanos}-${nowNanos}`;
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.point || [];
+      }
+    } catch {
+      // Ignore individual stream fetch error
+    }
+    return [];
+  };
+
+  // 1. Try standard Google Fit merged streams first
+  try {
+    const weightPoints = await fetchDatasetPoints('derived:com.google.weight:com.google.android.gms:merge_weight');
+    if (weightPoints.length > 0) {
+      const lastPt = weightPoints[weightPoints.length - 1];
+      if (typeof lastPt.value?.[0]?.fpVal === 'number') {
+        weightKg = Number(lastPt.value[0].fpVal.toFixed(1));
+      }
+    }
+  } catch (e) {
+    console.warn('Could not read merge_weight dataset:', e);
+  }
+
+  try {
+    const heightPoints = await fetchDatasetPoints('derived:com.google.height:com.google.android.gms:merge_height');
+    if (heightPoints.length > 0) {
+      const lastPt = heightPoints[heightPoints.length - 1];
+      if (typeof lastPt.value?.[0]?.fpVal === 'number') {
+        heightMeters = Number(lastPt.value[0].fpVal.toFixed(2));
+      }
+    }
+  } catch (e) {
+    console.warn('Could not read merge_height dataset:', e);
+  }
+
+  // 2. If weight, height, or blood pressure not found, discover from user's active data sources
+  if (weightKg === null || heightMeters === null || bloodPressure === null) {
+    try {
+      const dsRes = await fetch(`${GOOGLE_FIT_BASE_URL}/dataSources`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (dsRes.ok) {
+        const dsData = await dsRes.json();
+        const sources: Array<{ dataStreamId: string; dataType?: { name: string } }> = dsData.dataSource || [];
+
+        for (const src of sources) {
+          if (!src.dataStreamId) continue;
+
+          // Check for weight if still missing
+          if (weightKg === null && src.dataType?.name === 'com.google.weight') {
+            const pts = await fetchDatasetPoints(src.dataStreamId);
+            if (pts.length > 0) {
+              const lastVal = pts[pts.length - 1].value?.[0]?.fpVal;
+              if (typeof lastVal === 'number') {
+                weightKg = Number(lastVal.toFixed(1));
+              }
+            }
+          }
+
+          // Check for height if still missing
+          if (heightMeters === null && src.dataType?.name === 'com.google.height') {
+            const pts = await fetchDatasetPoints(src.dataStreamId);
+            if (pts.length > 0) {
+              const lastVal = pts[pts.length - 1].value?.[0]?.fpVal;
+              if (typeof lastVal === 'number') {
+                heightMeters = Number(lastVal.toFixed(2));
+              }
+            }
+          }
+
+          // Check for blood pressure if still missing
+          if (bloodPressure === null && src.dataType?.name === 'com.google.blood_pressure') {
+            const pts = await fetchDatasetPoints(src.dataStreamId);
+            if (pts.length > 0) {
+              const lastPt = pts[pts.length - 1];
+              const sys = lastPt.value?.[0]?.fpVal ?? null;
+              const dia = lastPt.value?.[1]?.fpVal ?? null;
+              if (sys !== null && dia !== null) {
+                const map = Math.round((2 * dia + sys) / 3);
+                let classification: 'Normal' | 'Elevated' | 'Stage 1' | 'Stage 2' | 'Hypertensive Crisis' = 'Normal';
+                if (sys >= 180 || dia >= 120) classification = 'Hypertensive Crisis';
+                else if (sys >= 140 || dia >= 90) classification = 'Stage 2';
+                else if (sys >= 130 || dia >= 80) classification = 'Stage 1';
+                else if (sys >= 120 && dia < 80) classification = 'Elevated';
+
+                bloodPressure = {
+                  systolic: sys,
+                  diastolic: dia,
+                  meanArterialPressure: map,
+                  status: classification,
+                };
+              }
+            }
+          }
+        }
+      }
+    } catch (dsErr) {
+      console.warn('Error discovering dataSources for latest body metrics:', dsErr);
+    }
+  }
+
+  return { weightKg, heightMeters, bloodPressure };
+}
+
+/**
+ * Fetches aggregated daily summaries across Steps, Active Minutes, and Weight
  * bucketed by 1 calendar day (86,400,000 milliseconds).
+ * Employs clean, isolated queries so that optional or unsupported metric types
+ * never prevent step count from being returned.
  */
 export async function fetchAggregatedDailySummaries(
   accessToken: string,
   startTimeMillis: number,
   endTimeMillis: number
 ): Promise<DailySummaryMetric[]> {
-  const aggregatePayload = {
+  // 1. Primary: Step Count Aggregation (standard Google Fit aggregate data type)
+  // IMPORTANT: Do NOT specify dataSourceId alongside dataTypeName; Google Fit API
+  // automatically aggregates across all devices, Google Fit app, watches, and manual steps.
+  const stepsPayload = {
     aggregateBy: [
       {
         dataTypeName: 'com.google.step_count.delta',
-        dataSourceId: 'derived:com.google.step_count.delta:com.google.android.gms:estimated_steps',
-      },
-      {
-        dataTypeName: 'com.google.weight',
-      },
-      {
-        dataTypeName: 'com.google.height',
-      },
-      {
-        dataTypeName: 'com.google.blood_pressure',
-      },
-      {
-        dataTypeName: 'com.google.active_minutes',
       },
     ],
-    bucketByTime: { durationMillis: 86400000 }, // 1 Day bucket
+    bucketByTime: { durationMillis: 86400000 },
     startTimeMillis,
     endTimeMillis,
   };
 
-  const response = await fetch(`${GOOGLE_FIT_BASE_URL}/dataset:aggregate`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(aggregatePayload),
-  });
+  let stepsBuckets: any[] = [];
+  try {
+    const stepsRes = await fetch(`${GOOGLE_FIT_BASE_URL}/dataset:aggregate`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(stepsPayload),
+    });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Google Fit aggregate error (${response.status}): ${errorText}`);
+    if (stepsRes.ok) {
+      const data = await stepsRes.json();
+      stepsBuckets = data.bucket || [];
+    } else {
+      const err = await stepsRes.text();
+      console.warn(`Google Fit steps aggregate warning (${stepsRes.status}):`, err);
+    }
+  } catch (err) {
+    console.error('Failed to fetch steps aggregate:', err);
   }
 
-  const data: AggregateResponse = await response.json();
+  // 2. Secondary: Active Minutes Aggregation (gracefully isolated)
+  let activeMinutesBuckets: any[] = [];
+  try {
+    const activePayload = {
+      aggregateBy: [
+        {
+          dataTypeName: 'com.google.active_minutes',
+        },
+      ],
+      bucketByTime: { durationMillis: 86400000 },
+      startTimeMillis,
+      endTimeMillis,
+    };
+
+    const activeRes = await fetch(`${GOOGLE_FIT_BASE_URL}/dataset:aggregate`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(activePayload),
+    });
+
+    if (activeRes.ok) {
+      const aData = await activeRes.json();
+      activeMinutesBuckets = aData.bucket || [];
+    }
+  } catch {
+    // Graceful skip
+  }
+
+  // 3. Secondary: Daily Weight Summary Aggregation (gracefully isolated)
+  let weightBuckets: any[] = [];
+  try {
+    const weightPayload = {
+      aggregateBy: [
+        {
+          dataTypeName: 'com.google.weight.summary',
+        },
+      ],
+      bucketByTime: { durationMillis: 86400000 },
+      startTimeMillis,
+      endTimeMillis,
+    };
+
+    const weightRes = await fetch(`${GOOGLE_FIT_BASE_URL}/dataset:aggregate`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(weightPayload),
+    });
+
+    if (weightRes.ok) {
+      const wData = await weightRes.json();
+      weightBuckets = wData.bucket || [];
+    }
+  } catch {
+    // Graceful skip
+  }
+
+  // 4. Retrieve latest user body metrics (height, weight, BP) from Google Fit app profile/streams
+  const latestBody = await fetchLatestBodyMetrics(accessToken);
+
+  // Calculate day-by-day buckets
+  const bucketDuration = 86400000;
+  const numBuckets = Math.max(
+    1,
+    stepsBuckets.length,
+    Math.round((endTimeMillis - startTimeMillis) / bucketDuration)
+  );
+
   const summaries: DailySummaryMetric[] = [];
 
-  for (const bucket of data.bucket || []) {
-    const bucketStartMs = Number(bucket.startTimeMillis);
-    const dateStr = new Date(bucketStartMs).toISOString().split('T')[0];
+  for (let i = 0; i < numBuckets; i++) {
+    const bStart = startTimeMillis + i * bucketDuration;
+    const dateStr = new Date(bStart).toISOString().split('T')[0];
 
+    // Extract steps for this bucket
     let steps = 0;
-    let weightKg: number | null = null;
-    let heightMeters: number | null = null;
-    let systolic: number | null = null;
-    let diastolic: number | null = null;
-    let activeMinutes = 0;
-
-    for (const dataset of bucket.dataset || []) {
-      for (const pt of dataset.point || []) {
-        if (pt.dataTypeName === 'com.google.step_count.delta') {
-          steps += pt.value?.[0]?.intVal || 0;
-        } else if (pt.dataTypeName === 'com.google.weight') {
-          weightKg = pt.value?.[0]?.fpVal ? Number(pt.value[0].fpVal.toFixed(1)) : null;
-        } else if (pt.dataTypeName === 'com.google.height') {
-          heightMeters = pt.value?.[0]?.fpVal ? Number(pt.value[0].fpVal.toFixed(2)) : null;
-        } else if (pt.dataTypeName === 'com.google.blood_pressure') {
-          // Field 0: Systolic, Field 1: Diastolic
-          systolic = pt.value?.[0]?.fpVal || null;
-          diastolic = pt.value?.[1]?.fpVal || null;
-        } else if (pt.dataTypeName === 'com.google.active_minutes') {
-          activeMinutes += pt.value?.[0]?.intVal || 0;
+    const sBucket = stepsBuckets[i];
+    if (sBucket?.dataset) {
+      for (const ds of sBucket.dataset) {
+        for (const pt of ds.point || []) {
+          for (const val of pt.value || []) {
+            if (typeof val.intVal === 'number') {
+              steps += val.intVal;
+            }
+          }
         }
       }
     }
 
-    // Determine Blood Pressure Status
-    let bpStatus: DailySummaryMetric['bloodPressure'] = null;
-    if (systolic !== null && diastolic !== null) {
-      const meanArterialPressure = Math.round((2 * diastolic + systolic) / 3);
-      let classification: 'Normal' | 'Elevated' | 'Stage 1' | 'Stage 2' | 'Hypertensive Crisis' = 'Normal';
-
-      if (systolic >= 180 || diastolic >= 120) {
-        classification = 'Hypertensive Crisis';
-      } else if (systolic >= 140 || diastolic >= 90) {
-        classification = 'Stage 2';
-      } else if (systolic >= 130 || diastolic >= 80) {
-        classification = 'Stage 1';
-      } else if (systolic >= 120 && diastolic < 80) {
-        classification = 'Elevated';
+    // Extract active minutes for this bucket
+    let activeMinutes = 0;
+    const aBucket = activeMinutesBuckets[i];
+    if (aBucket?.dataset) {
+      for (const ds of aBucket.dataset) {
+        for (const pt of ds.point || []) {
+          for (const val of pt.value || []) {
+            if (typeof val.intVal === 'number') {
+              activeMinutes += val.intVal;
+            }
+          }
+        }
       }
-
-      bpStatus = {
-        systolic,
-        diastolic,
-        meanArterialPressure,
-        status: classification,
-      };
+    }
+    // If active minutes wasn't tracked by wearable, approximate active minutes from steps (~120 steps/min)
+    if (activeMinutes === 0 && steps > 1000) {
+      activeMinutes = Math.round(steps / 120);
     }
 
-    // Determine BMI if both weight and height exist
-    const bmi = weightKg && heightMeters ? Number((weightKg / (heightMeters * heightMeters)).toFixed(1)) : null;
+    // Extract daily weight if logged in this bucket
+    let dayWeight: number | null = null;
+    const wBucket = weightBuckets[i];
+    if (wBucket?.dataset) {
+      for (const ds of wBucket.dataset) {
+        for (const pt of ds.point || []) {
+          if (typeof pt.value?.[0]?.fpVal === 'number') {
+            dayWeight = Number(pt.value[0].fpVal.toFixed(1));
+          }
+        }
+      }
+    }
+
+    // Fall back to user's latest recorded profile weight and height from Google Fit
+    const effectiveWeight = dayWeight || latestBody.weightKg;
+    const effectiveHeight = latestBody.heightMeters;
+    const bmi =
+      effectiveWeight && effectiveHeight
+        ? Number((effectiveWeight / (effectiveHeight * effectiveHeight)).toFixed(1))
+        : null;
 
     summaries.push({
       date: dateStr,
       steps,
-      weightKg,
-      heightMeters,
-      bloodPressure: bpStatus,
+      weightKg: effectiveWeight,
+      heightMeters: effectiveHeight,
+      bloodPressure: latestBody.bloodPressure,
       bmi,
       activeMinutes,
     });

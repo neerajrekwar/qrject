@@ -19,20 +19,130 @@ export const GOOGLE_FIT_COOKIE_NAME = 'gfit_oauth_tokens_v1';
 
 /**
  * Retrieves valid Google Fit tokens for the current authenticated user.
- * 1. Checks NextAuth session user email and user database record.
- * 2. Falls back to secure HTTP-only cookie.
- * 3. Refreshes token automatically if expiring within 5 minutes.
+ * 1. Checks secure HTTP-only cookie first (direct OAuth connect).
+ * 2. Checks NextAuth session directly for Google OAuth credentials.
+ * 3. Checks User profile record in MongoDB / memory store.
+ * 4. Automatically refreshes expiring tokens.
  */
 export async function getValidGoogleFitTokens(): Promise<GoogleOAuthTokens | null> {
-  // 1. Check NextAuth session
+  // 1. Check HTTP-only cookie (primary for direct Google Fit OAuth connect)
+  try {
+    const cookieStore = await cookies();
+    const tokenCookie = cookieStore.get(GOOGLE_FIT_COOKIE_NAME);
+
+    if (tokenCookie?.value) {
+      const tokens: GoogleOAuthTokens = JSON.parse(tokenCookie.value);
+
+      // Check if token has expired or is expiring within the next 5 minutes (300,000 ms)
+      const expirationThresholdMs = tokens.obtained_at + (tokens.expires_in - 300) * 1000;
+      const isExpired = Date.now() > expirationThresholdMs;
+
+      if (isExpired && tokens.refresh_token) {
+        try {
+          const refreshed = await refreshAccessToken(tokens.refresh_token);
+          tokens.access_token = refreshed.access_token;
+          tokens.expires_in = refreshed.expires_in;
+          tokens.obtained_at = refreshed.obtained_at;
+
+          // Update cookie with refreshed access token
+          cookieStore.set(GOOGLE_FIT_COOKIE_NAME, JSON.stringify(tokens), {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            maxAge: 60 * 60 * 24 * 60, // 60 days
+            path: '/',
+          });
+        } catch (refreshErr) {
+          console.warn('Failed to refresh Google Fit cookie token:', refreshErr);
+        }
+      }
+
+      if (tokens.access_token) {
+        return tokens;
+      }
+    }
+  } catch (cookieErr) {
+    console.warn('Cookie parse warning in getValidGoogleFitTokens:', cookieErr);
+  }
+
+  // 2. Check NextAuth session directly for Google OAuth tokens
   try {
     const session = await getServerSession(authOptions);
+    const s = session as any;
+
+    if (s?.googleAccessToken) {
+      const expiresAt = s.googleExpiresAt || Date.now() + 3600 * 1000;
+      const isExpired = Date.now() > expiresAt - 300 * 1000;
+
+      if (!isExpired) {
+        const tokens: GoogleOAuthTokens = {
+          access_token: s.googleAccessToken,
+          refresh_token: s.googleRefreshToken,
+          expires_in: Math.max(0, Math.floor((expiresAt - Date.now()) / 1000)),
+          token_type: 'Bearer',
+          scope: s.googleScope || '',
+          obtained_at: Date.now(),
+          userEmail: session?.user?.email || undefined,
+          userName: session?.user?.name || undefined,
+          userImage: session?.user?.image || undefined,
+        };
+
+        // Cache into cookie as well
+        try {
+          const cookieStore = await cookies();
+          cookieStore.set(GOOGLE_FIT_COOKIE_NAME, JSON.stringify(tokens), {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            maxAge: 60 * 60 * 24 * 60,
+            path: '/',
+          });
+        } catch {
+          // ignore cookie set in readonly contexts
+        }
+
+        return tokens;
+      } else if (s.googleRefreshToken) {
+        try {
+          const refreshed = await refreshAccessToken(s.googleRefreshToken);
+          const tokens: GoogleOAuthTokens = {
+            access_token: refreshed.access_token,
+            refresh_token: s.googleRefreshToken,
+            expires_in: refreshed.expires_in,
+            token_type: 'Bearer',
+            scope: s.googleScope || '',
+            obtained_at: refreshed.obtained_at,
+            userEmail: session?.user?.email || undefined,
+            userName: session?.user?.name || undefined,
+            userImage: session?.user?.image || undefined,
+          };
+
+          try {
+            const cookieStore = await cookies();
+            cookieStore.set(GOOGLE_FIT_COOKIE_NAME, JSON.stringify(tokens), {
+              httpOnly: true,
+              secure: process.env.NODE_ENV === 'production',
+              sameSite: 'lax',
+              maxAge: 60 * 60 * 24 * 60,
+              path: '/',
+            });
+          } catch {
+            // ignore
+          }
+
+          return tokens;
+        } catch (rErr) {
+          console.warn('NextAuth session token refresh failed:', rErr);
+        }
+      }
+    }
+
+    // 3. Check MongoDB / memory store by user email
     if (session?.user?.email) {
       const userEmail = session.user.email.toLowerCase().trim();
       const userTokens = await getUserGoogleFitTokens(userEmail);
 
       if (userTokens?.accessToken) {
-        // Check if token has expired or is expiring within next 5 minutes
         const isExpired = Date.now() > userTokens.expiresAt - 300 * 1000;
 
         if (isExpired && userTokens.refreshToken) {
@@ -80,47 +190,7 @@ export async function getValidGoogleFitTokens(): Promise<GoogleOAuthTokens | nul
     console.warn('Session check note in getValidGoogleFitTokens:', authErr);
   }
 
-  // 2. Fallback to HTTP-only cookie
-  const cookieStore = await cookies();
-  const tokenCookie = cookieStore.get(GOOGLE_FIT_COOKIE_NAME);
-
-  if (!tokenCookie?.value) {
-    return null;
-  }
-
-  try {
-    const tokens: GoogleOAuthTokens = JSON.parse(tokenCookie.value);
-
-    // Check if token has expired or is expiring within the next 5 minutes (300,000 ms)
-    const expirationThresholdMs = tokens.obtained_at + (tokens.expires_in - 300) * 1000;
-    const isExpired = Date.now() > expirationThresholdMs;
-
-    if (isExpired && tokens.refresh_token) {
-      try {
-        const refreshed = await refreshAccessToken(tokens.refresh_token);
-        tokens.access_token = refreshed.access_token;
-        tokens.expires_in = refreshed.expires_in;
-        tokens.obtained_at = refreshed.obtained_at;
-
-        // Update cookie with refreshed access token
-        cookieStore.set(GOOGLE_FIT_COOKIE_NAME, JSON.stringify(tokens), {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax',
-          maxAge: 60 * 60 * 24 * 60, // 60 days
-          path: '/',
-        });
-      } catch (refreshErr) {
-        console.warn('Failed to refresh Google Fit cookie token:', refreshErr);
-        return null;
-      }
-    }
-
-    return tokens;
-  } catch (err) {
-    console.error('Failed to parse Google Fit tokens cookie:', err);
-    return null;
-  }
+  return null;
 }
 
 /**

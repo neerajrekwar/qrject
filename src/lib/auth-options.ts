@@ -110,6 +110,9 @@ export const authOptions: NextAuthOptions = {
       // Capture Google OAuth tokens on initial login
       if (account?.provider === 'google') {
         (token as any).googleAccessToken = account.access_token;
+        (token as any).googleRefreshToken = account.refresh_token;
+        (token as any).googleExpiresAt = account.expires_at ? account.expires_at * 1000 : Date.now() + 3600 * 1000;
+        (token as any).googleScope = account.scope;
         (token as any).hasGoogleFit = true;
       }
 
@@ -141,6 +144,12 @@ export const authOptions: NextAuthOptions = {
           token.generationsLimit = profile.generationsLimit || 10;
           if (profile.googleFitTokens?.accessToken) {
             (token as any).hasGoogleFit = true;
+            if (!(token as any).googleAccessToken) {
+              (token as any).googleAccessToken = profile.googleFitTokens.accessToken;
+              (token as any).googleRefreshToken = profile.googleFitTokens.refreshToken;
+              (token as any).googleExpiresAt = profile.googleFitTokens.expiresAt;
+              (token as any).googleScope = profile.googleFitTokens.scope;
+            }
           }
         }
       }
@@ -156,6 +165,10 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).plan = (token.plan as string) || 'free';
         (session.user as any).generationsLimit = (token.generationsLimit as number) || 10;
         (session.user as any).hasGoogleFit = Boolean((token as any).hasGoogleFit);
+        (session as any).googleAccessToken = (token as any).googleAccessToken;
+        (session as any).googleRefreshToken = (token as any).googleRefreshToken;
+        (session as any).googleExpiresAt = (token as any).googleExpiresAt;
+        (session as any).googleScope = (token as any).googleScope;
       }
       return session;
     },

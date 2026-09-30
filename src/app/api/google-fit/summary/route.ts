@@ -57,21 +57,21 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const now = Date.now();
-    const startTimeMillis = now - days * 24 * 60 * 60 * 1000;
+    const todayMidnight = new Date();
+    todayMidnight.setHours(0, 0, 0, 0);
+    const startTimeMillis = todayMidnight.getTime() - (days - 1) * 24 * 60 * 60 * 1000;
+    const endTimeMillis = Date.now();
 
     let summaries: DailySummaryMetric[] = [];
     let isSimulated = false;
 
     try {
-      summaries = await fetchAggregatedDailySummaries(tokens.access_token, startTimeMillis, now);
-      // If user's Google Fit account has no logged activity in this period, provide clean zero baselines
+      summaries = await fetchAggregatedDailySummaries(tokens.access_token, startTimeMillis, endTimeMillis);
       if (summaries.length === 0) {
         summaries = getCleanInitialSummariesForUser();
       }
     } catch (fitErr) {
-      console.warn('Google Fit API call warning for user', userEmail, fitErr);
-      // Fallback to clean zero state for the user instead of someone else's data!
+      console.error('Google Fit API call warning for user', userEmail, fitErr);
       summaries = getCleanInitialSummariesForUser();
     }
 

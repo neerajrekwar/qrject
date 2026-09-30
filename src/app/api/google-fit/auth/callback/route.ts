@@ -28,6 +28,20 @@ export async function GET(request: NextRequest) {
     const tokens = await exchangeCodeForTokens(code, redirectUri);
     await setGoogleFitTokensCookie(tokens);
 
+    if (tokens.userEmail) {
+      try {
+        const { saveUserGoogleFitTokens } = await import('@/lib/db-users');
+        await saveUserGoogleFitTokens(tokens.userEmail, {
+          accessToken: tokens.access_token,
+          refreshToken: tokens.refresh_token,
+          expiresAt: tokens.obtained_at + tokens.expires_in * 1000,
+          scope: tokens.scope,
+        });
+      } catch (dbErr) {
+        console.warn('Note: Could not persist Google Fit tokens to DB in callback:', dbErr);
+      }
+    }
+
     return NextResponse.redirect(new URL('/google-fit?connected=success', request.url));
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown OAuth error';

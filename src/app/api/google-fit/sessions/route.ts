@@ -25,14 +25,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         success: true,
         isSimulated: false,
-        sessions: sessions.length > 0 ? sessions : getMockWorkoutSessions(),
+        sessions: sessions,
       });
     } catch (apiErr) {
-      console.warn('Google Fit sessions API failed, falling back to mock:', apiErr);
+      console.warn('Google Fit sessions API note:', apiErr);
       return NextResponse.json({
         success: true,
-        isSimulated: true,
-        sessions: getMockWorkoutSessions(),
+        isSimulated: false,
+        sessions: [],
       });
     }
   } catch (err: unknown) {
