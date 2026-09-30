@@ -42,12 +42,12 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.redirect(new URL('/google-fit?connected=success', request.url));
+    return NextResponse.redirect(new URL('/dashboard?auth=success', request.url));
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown OAuth error';
     console.error('Failed to exchange Google OAuth code:', message);
     return NextResponse.redirect(
-      new URL(`/google-fit?error=${encodeURIComponent(message)}`, request.url)
+      new URL(`/dashboard?error=${encodeURIComponent(message)}`, request.url)
     );
   }
 }

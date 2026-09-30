@@ -50,63 +50,25 @@ export type ManagementMode = 'digital_web' | 'print_paper';
 
 const STORAGE_KEY = 'fitness_glass_protocol_v8_dual_clean';
 
-function getSavedProtocol(): Partial<FitnessGlassData> | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    // Purge older preset keys that had preset checks
-    localStorage.removeItem('fitness_glass_protocol_v5');
-    localStorage.removeItem('fitness_glass_protocol_v4');
-    localStorage.removeItem('fitness_glass_protocol_v3');
-    
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : null;
-  } catch {
-    return null;
-  }
-}
-
 export default function FitnessGlassPage() {
   // Dual Usage Management Mode:
   // 1. 'digital_web': Interactive clicking on web, live % calculations, real-time dynamic graph
   // 2. 'print_paper': Physical A4 printable layout with clean empty boxes for manual black ball pen ticking
   const [managementMode, setManagementMode] = useState<ManagementMode>('digital_web');
 
-  const [cadence, setCadence] = useState<FitnessCadence>(() => {
-    const saved = getSavedProtocol();
-    return saved?.cadence || 'daily';
-  });
-
-  const [userName, setUserName] = useState<string>(() => {
-    const saved = getSavedProtocol();
-    return saved?.userName || 'Neeraj Rekwar';
-  });
-
-  const [planTitle, setPlanTitle] = useState<string>(() => {
-    const saved = getSavedProtocol();
-    return saved?.planTitle || 'High-Performance 80% Adherence Protocol';
-  });
+  const [cadence, setCadence] = useState<FitnessCadence>('daily');
+  const [userName, setUserName] = useState<string>('Neeraj Rekwar');
+  const [planTitle, setPlanTitle] = useState<string>('High-Performance 80% Adherence Protocol');
 
   // Default timetable: completely clean with ZERO preset checks (all completed: false, all dayChecks: [false...])
-  const [timetable, setTimetable] = useState<Record<FitnessCadence, TimetableBlock[]>>(() => {
-    const saved = getSavedProtocol();
-    return saved?.timetable || INITIAL_TIMETABLE;
-  });
-
-  const [goals, setGoals] = useState<FitnessGoal[]>(() => {
-    const saved = getSavedProtocol();
-    return saved?.goals || INITIAL_GOALS;
-  });
-
-  const [orientationMode, setOrientationMode] = useState<PrintOrientationMode>(() => {
-    const saved = getSavedProtocol();
-    return saved?.orientationMode || 'auto';
-  });
+  const [timetable, setTimetable] = useState<Record<FitnessCadence, TimetableBlock[]>>(INITIAL_TIMETABLE);
+  const [goals, setGoals] = useState<FitnessGoal[]>(INITIAL_GOALS);
+  const [orientationMode, setOrientationMode] = useState<PrintOrientationMode>('auto');
 
   // For paper print: default is blank_paper_pen (clean empty square boxes for black ball pen)
-  const [printCheckStyle, setPrintCheckStyle] = useState<PrintCheckStyle>(() => {
-    const saved = getSavedProtocol();
-    return saved?.printCheckStyle || 'blank_paper_pen';
-  });
+  const [printCheckStyle, setPrintCheckStyle] = useState<PrintCheckStyle>('blank_paper_pen');
+
+  const [isLoaded, setIsLoaded] = useState<boolean>(false);
 
   // Modal states
   const [showGoalModal, setShowGoalModal] = useState<boolean>(false);
@@ -163,9 +125,34 @@ export default function FitnessGlassPage() {
     });
   }, [timetable, cadence]);
 
-  // Save to localStorage on changes
+  // Restore persisted state from localStorage on client mount (prevents SSR hydration mismatch)
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    try {
+      localStorage.removeItem('fitness_glass_protocol_v5');
+      localStorage.removeItem('fitness_glass_protocol_v4');
+      localStorage.removeItem('fitness_glass_protocol_v3');
+
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const data: Partial<FitnessGlassData> = JSON.parse(saved);
+        if (data.cadence) setCadence(data.cadence);
+        if (data.userName) setUserName(data.userName);
+        if (data.planTitle) setPlanTitle(data.planTitle);
+        if (data.timetable) setTimetable(data.timetable);
+        if (data.goals) setGoals(data.goals);
+        if (data.orientationMode) setOrientationMode(data.orientationMode);
+        if (data.printCheckStyle) setPrintCheckStyle(data.printCheckStyle);
+      }
+    } catch (e) {
+      console.warn('Failed to load protocol from localStorage:', e);
+    } finally {
+      setIsLoaded(true);
+    }
+  }, []);
+
+  // Save to localStorage on changes only AFTER initial load completes
+  useEffect(() => {
+    if (!isLoaded || typeof window === 'undefined') return;
     try {
       const payload: FitnessGlassData = {
         cadence,
@@ -183,7 +170,17 @@ export default function FitnessGlassPage() {
     } catch (e) {
       console.warn('Failed to save to localStorage:', e);
     }
-  }, [cadence, userName, planTitle, timetable, goals, orientationMode, printCheckStyle, dynamicDayHistory]);
+  }, [
+    isLoaded,
+    cadence,
+    userName,
+    planTitle,
+    timetable,
+    goals,
+    orientationMode,
+    printCheckStyle,
+    dynamicDayHistory,
+  ]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);

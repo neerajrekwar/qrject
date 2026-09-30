@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import {
   WinterArcGoalStandard,
   WinterArcPrintStyle,
@@ -15,11 +16,40 @@ import {
   Edit2,
   Sparkles,
   Zap,
+  Footprints,
+  Scale,
+  HeartPulse,
+  RefreshCw,
+  ExternalLink,
+  AlertTriangle,
+  Lock,
+  ArrowRight,
+  ShieldCheck,
+  Flame,
 } from 'lucide-react';
+
+export interface GoogleFitTelemetryState {
+  isConnected: boolean;
+  userEmail: string | null;
+  userName: string | null;
+  todaySteps: number;
+  avgSteps: number;
+  totalSteps: number;
+  latestWeight: number | null;
+  latestHeight: number | null;
+  activeMinutes: number;
+  isApiDisabled?: boolean;
+  apiActivationUrl?: string | null;
+  isLoading: boolean;
+  lastSyncedAt?: string | null;
+}
 
 interface WinterArcMeasurableGoalsAnalysisProps {
   standards: WinterArcGoalStandard[];
   printStyle?: WinterArcPrintStyle;
+  googleFitData?: GoogleFitTelemetryState;
+  onRefreshGoogleFit?: () => void;
+  onApplyGoogleFitToGoals?: () => void;
   onUpdateGoalCurrent?: (goalId: string, delta: number) => void;
   onSetGoalCurrent?: (goalId: string, value: number) => void;
   onDeleteGoal?: (goalId: string) => void;
@@ -30,6 +60,9 @@ interface WinterArcMeasurableGoalsAnalysisProps {
 export const WinterArcMeasurableGoalsAnalysis: React.FC<WinterArcMeasurableGoalsAnalysisProps> = ({
   standards,
   printStyle = 'blank_paper_pen',
+  googleFitData,
+  onRefreshGoogleFit,
+  onApplyGoogleFitToGoals,
   onUpdateGoalCurrent,
   onSetGoalCurrent,
   onDeleteGoal,
@@ -160,18 +193,240 @@ export const WinterArcMeasurableGoalsAnalysis: React.FC<WinterArcMeasurableGoals
         </div>
       </div>
 
-      {/* 2. Interactive Data Table */}
+      {/* 2. GOOGLE FIT LIVE CLOUD TELEMETRY & ALIGNMENT WIDGET */}
+      <div className="border-b-2 border-black bg-white p-4 font-mono print:hidden">
+        {/* Top telemetry control strip */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-zinc-200">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <span className="bg-black text-[#ccff00] text-[10px] font-black uppercase px-2.5 py-1 border border-black flex items-center gap-1.5 shadow-[2px_2px_0px_#000000]">
+              <Footprints className="w-3.5 h-3.5 text-[#ccff00]" />
+              <span>Google Fit Cloud Telemetry</span>
+            </span>
+
+            {googleFitData?.isConnected ? (
+              <span className="bg-emerald-100 text-emerald-950 border border-emerald-600 text-[10px] font-black uppercase px-2.5 py-0.5 flex items-center gap-1.5 shadow-[1px_1px_0px_#000000]">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <span>Synced: {googleFitData.userEmail || 'Authenticated User'}</span>
+              </span>
+            ) : (
+              <span className="bg-zinc-100 text-zinc-700 border border-black text-[10px] font-bold uppercase px-2 py-0.5 flex items-center gap-1">
+                <Lock className="w-3 h-3 text-zinc-500" />
+                <span>Google Fit Not Connected</span>
+              </span>
+            )}
+
+            {googleFitData?.isApiDisabled && (
+              <span className="bg-amber-100 text-amber-950 border border-amber-600 text-[10px] font-black uppercase px-2 py-0.5 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3 text-amber-600" />
+                <span>Fitness API Disabled in Google Cloud</span>
+              </span>
+            )}
+
+            {googleFitData?.lastSyncedAt && (
+              <span className="text-[10px] text-zinc-500 font-bold hidden lg:inline">
+                Last checked: {googleFitData.lastSyncedAt}
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            {googleFitData?.isApiDisabled ? (
+              <a
+                href={
+                  googleFitData.apiActivationUrl ||
+                  'https://console.developers.google.com/apis/api/fitness.googleapis.com/overview?project=263261388820'
+                }
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 border-2 border-black bg-amber-500 hover:bg-amber-400 text-black font-black text-xs uppercase flex items-center gap-1.5 shadow-[2px_2px_0px_#000000] transition-colors"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>Enable Fitness API in Cloud</span>
+              </a>
+            ) : null}
+
+            {googleFitData?.isConnected ? (
+              <>
+                {onRefreshGoogleFit && (
+                  <button
+                    onClick={onRefreshGoogleFit}
+                    disabled={googleFitData.isLoading}
+                    className="px-3 py-1.5 border-2 border-black bg-zinc-100 hover:bg-zinc-200 text-black font-bold text-xs uppercase flex items-center gap-1.5 shadow-[2px_2px_0px_#000000] cursor-pointer transition-transform active:translate-x-0.5 active:translate-y-0.5"
+                    title="Pull latest live telemetry from Google Fit"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${googleFitData.isLoading ? 'animate-spin' : ''}`} />
+                    <span>{googleFitData.isLoading ? 'Syncing...' : 'Sync Cloud'}</span>
+                  </button>
+                )}
+
+                {onApplyGoogleFitToGoals && (
+                  <button
+                    onClick={onApplyGoogleFitToGoals}
+                    className="px-3.5 py-1.5 border-2 border-black bg-[#ccff00] hover:bg-black hover:text-[#ccff00] text-black font-black text-xs uppercase flex items-center gap-1.5 shadow-[2px_2px_0px_#000000] cursor-pointer transition-all active:translate-x-0.5 active:translate-y-0.5"
+                    title="Auto-update step count & body metrics in measurable goals matrix"
+                  >
+                    <Zap className="w-3.5 h-3.5 fill-current" />
+                    <span>Auto-Align Steps to Goals</span>
+                  </button>
+                )}
+              </>
+            ) : (
+              <Link
+                href="/google-fit"
+                className="px-3.5 py-1.5 border-2 border-black bg-black text-[#ccff00] hover:bg-[#ccff00] hover:text-black font-black text-xs uppercase flex items-center gap-1.5 shadow-[2px_2px_0px_#000000] transition-colors"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>Connect Google Fit</span>
+              </Link>
+            )}
+          </div>
+        </div>
+
+        {/* 4 Live Aligned Metric Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-3">
+          {/* Card 1: Today's Steps & Goal Completion */}
+          {(() => {
+            const todaySteps = googleFitData?.todaySteps || 0;
+            const targetSteps = 10000;
+            const stepPercent = Math.min(100, Math.round((todaySteps / targetSteps) * 100));
+            const stepAchieved = todaySteps >= targetSteps;
+
+            return (
+              <div className="border-2 border-black bg-[#fafaf8] p-3.5 shadow-[3px_3px_0px_#000000] flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase text-zinc-600 tracking-wider">
+                      TODAY&apos;S STEP PROGRESS
+                    </span>
+                    <Footprints className="w-4 h-4 text-black" />
+                  </div>
+                  <div className="flex items-baseline gap-1.5 mt-1.5">
+                    <span className="text-2xl sm:text-3xl font-black text-black tracking-tight">
+                      {todaySteps.toLocaleString()}
+                    </span>
+                    <span className="text-xs font-bold text-zinc-500">/ 10k steps</span>
+                  </div>
+                </div>
+
+                <div className="mt-3 space-y-1.5">
+                  <div className="flex justify-between items-center text-[10px] font-black">
+                    <span className={stepAchieved ? 'text-emerald-700 font-black' : 'text-black'}>
+                      {stepPercent}% {stepAchieved ? '✓ GOAL MET' : 'COMPLETED'}
+                    </span>
+                    <span className="text-zinc-500 font-bold">
+                      {stepAchieved
+                        ? 'Target achieved'
+                        : `${(Math.max(0, targetSteps - todaySteps)).toLocaleString()} steps to go`}
+                    </span>
+                  </div>
+                  <div className="w-full bg-zinc-200 h-2.5 border border-black overflow-hidden">
+                    <div
+                      className={`h-full border-r border-black transition-all duration-500 ${
+                        stepAchieved ? 'bg-[#ccff00]' : 'bg-black'
+                      }`}
+                      style={{ width: `${stepPercent}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Card 2: 7-Day Average Steps */}
+          <div className="border-2 border-black bg-[#fafaf8] p-3.5 shadow-[3px_3px_0px_#000000] flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase text-zinc-600 tracking-wider">
+                  7-DAY AVERAGE PACING
+                </span>
+                <TrendingUp className="w-4 h-4 text-emerald-600" />
+              </div>
+              <div className="flex items-baseline gap-1.5 mt-1.5">
+                <span className="text-2xl sm:text-3xl font-black text-black tracking-tight">
+                  {(googleFitData?.avgSteps || 0).toLocaleString()}
+                </span>
+                <span className="text-xs font-bold text-zinc-500">steps / day</span>
+              </div>
+            </div>
+
+            <div className="mt-3 pt-2 border-t border-zinc-200 flex items-center justify-between text-[11px] font-bold text-zinc-600">
+              <span>7-Day Volume:</span>
+              <span className="font-black text-black">
+                {(googleFitData?.totalSteps || 0).toLocaleString()} steps
+              </span>
+            </div>
+          </div>
+
+          {/* Card 3: Body Weight & Composition */}
+          <div className="border-2 border-black bg-[#fafaf8] p-3.5 shadow-[3px_3px_0px_#000000] flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase text-zinc-600 tracking-wider">
+                  BODY WEIGHT &amp; BMI
+                </span>
+                <Scale className="w-4 h-4 text-blue-600" />
+              </div>
+              <div className="flex items-baseline gap-1.5 mt-1.5">
+                <span className="text-2xl sm:text-3xl font-black text-black tracking-tight">
+                  {googleFitData?.latestWeight ? `${googleFitData.latestWeight} kg` : '--'}
+                </span>
+                {googleFitData?.latestHeight && (
+                  <span className="text-xs font-bold text-zinc-500">
+                    ({googleFitData.latestHeight}m)
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-3 pt-2 border-t border-zinc-200 flex items-center justify-between text-[11px] font-bold text-zinc-600">
+              <span>Calculated BMI:</span>
+              <span className="font-black text-black">
+                {googleFitData?.latestWeight && googleFitData?.latestHeight
+                  ? (googleFitData.latestWeight / (googleFitData.latestHeight * googleFitData.latestHeight)).toFixed(1)
+                  : 'Profile baseline'}
+              </span>
+            </div>
+          </div>
+
+          {/* Card 4: Active Minutes & Zone 2 */}
+          <div className="border-2 border-black bg-[#fafaf8] p-3.5 shadow-[3px_3px_0px_#000000] flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase text-zinc-600 tracking-wider">
+                  ACTIVE TIME / ZONE 2
+                </span>
+                <HeartPulse className="w-4 h-4 text-rose-600" />
+              </div>
+              <div className="flex items-baseline gap-1.5 mt-1.5">
+                <span className="text-2xl sm:text-3xl font-black text-black tracking-tight">
+                  {googleFitData?.activeMinutes || 0}
+                </span>
+                <span className="text-xs font-bold text-zinc-500">active mins</span>
+              </div>
+            </div>
+
+            <div className="mt-3 pt-2 border-t border-zinc-200 flex items-center justify-between text-[11px] font-bold text-zinc-600">
+              <span>Google Heart Points:</span>
+              <span className="font-black text-black">
+                {Math.round((googleFitData?.activeMinutes || 0) * 0.75)} pts
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Interactive Data Table with Aligned Columns */}
       <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse font-mono text-xs min-w-[700px]">
+        <table className="w-full text-left border-collapse font-mono text-xs min-w-[760px]">
           <thead>
             <tr className="border-b-2 border-black bg-[#f0f0eb] text-black font-black uppercase text-[11px]">
-              <th className="p-3 border-r border-black">TARGET METRIC / GOAL</th>
-              <th className="p-3 w-36 border-r border-black hidden sm:table-cell">CATEGORY</th>
+              <th className="p-3 border-r border-black min-w-[240px]">TARGET METRIC / GOAL</th>
+              <th className="p-3 w-36 border-r border-black text-center hidden sm:table-cell">CATEGORY</th>
               <th className="p-3 w-28 border-r border-black text-right">BASELINE</th>
-              <th className="p-3 w-44 border-r border-black text-center">CURRENT / LOG</th>
+              <th className="p-3 w-48 border-r border-black text-center">CURRENT / LOG</th>
               <th className="p-3 w-28 border-r border-black text-right">TARGET</th>
-              <th className="p-3 w-48 border-r border-black">PROGRESS (%)</th>
-              <th className="p-3 w-16 text-center print:hidden">DEL</th>
+              <th className="p-3 w-56 border-r border-black">PROGRESS (%)</th>
+              <th className="p-3 w-14 text-center print:hidden">DEL</th>
             </tr>
           </thead>
 
@@ -179,32 +434,35 @@ export const WinterArcMeasurableGoalsAnalysis: React.FC<WinterArcMeasurableGoals
             {standards.map((goal) => {
               const progress = computeWinterArcGoalProgress(goal);
               const isAchieved = progress >= 100;
+              const isStepGoal = goal.unit === 'steps' || goal.name.toLowerCase().includes('step');
+              const isWeightGoal =
+                goal.unit === 'kg' ||
+                goal.category === 'Body Transformation' ||
+                goal.name.toLowerCase().includes('weight') ||
+                goal.name.toLowerCase().includes('body fat');
 
               // Compute delta to target if numeric
               let deltaStr = '';
-              if (
-                goal.targetNum !== undefined &&
-                goal.currentNum !== undefined
-              ) {
+              if (goal.targetNum !== undefined && goal.currentNum !== undefined) {
                 const diff = Math.round(Math.abs(goal.targetNum - goal.currentNum) * 10) / 10;
-                deltaStr = isAchieved ? 'Target achieved' : `${diff} ${goal.unit || ''} to go`;
+                deltaStr = isAchieved ? 'Target achieved' : `${diff.toLocaleString()} ${goal.unit || ''} to go`;
               } else {
                 deltaStr = isAchieved ? 'Target achieved' : `${100 - progress}% remaining`;
               }
 
               const displayCurrent =
                 goal.currentNum !== undefined
-                  ? `${goal.currentNum} ${goal.unit || ''}`
+                  ? `${goal.currentNum.toLocaleString()} ${goal.unit || ''}`
                   : goal.currentStatus || 'Tracking';
 
               const displayBaseline =
                 goal.baselineNum !== undefined
-                  ? `${goal.baselineNum} ${goal.unit || ''}`
+                  ? `${goal.baselineNum.toLocaleString()} ${goal.unit || ''}`
                   : goal.startingBaseline;
 
               const displayTarget =
                 goal.targetNum !== undefined
-                  ? `${goal.targetNum} ${goal.unit || ''}`
+                  ? `${goal.targetNum.toLocaleString()} ${goal.unit || ''}`
                   : goal.targetStandard;
 
               return (
@@ -212,14 +470,28 @@ export const WinterArcMeasurableGoalsAnalysis: React.FC<WinterArcMeasurableGoals
                   
                   {/* Goal Title & Notes */}
                   <td className="p-3 border-r border-black">
-                    <div className="font-black text-black text-[13px]">{goal.name}</div>
-                    <div className="text-[10px] text-zinc-500 font-normal">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-black text-black text-[13px]">{goal.name}</span>
+                      {isStepGoal && (
+                        <span className="inline-flex items-center gap-1 bg-[#ccff00] text-black border border-black text-[9px] font-black px-1.5 py-0.2 uppercase shadow-[1px_1px_0px_#000000]">
+                          <Footprints className="w-2.5 h-2.5" />
+                          <span>Google Fit Synced</span>
+                        </span>
+                      )}
+                      {isWeightGoal && googleFitData?.latestWeight && (
+                        <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-900 border border-blue-500 text-[9px] font-black px-1.5 py-0.2 uppercase shadow-[1px_1px_0px_#000000]">
+                          <Scale className="w-2.5 h-2.5" />
+                          <span>Google Fit Cloud</span>
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[10px] text-zinc-500 font-normal mt-0.5">
                       {goal.notes ? goal.notes : `Standard Pillar // 90-Day Benchmark`}
                     </div>
                   </td>
 
                   {/* Category */}
-                  <td className="p-3 border-r border-black hidden sm:table-cell">
+                  <td className="p-3 border-r border-black text-center hidden sm:table-cell">
                     <span className="border border-black bg-white px-2 py-0.5 text-[10px] font-bold text-zinc-800 inline-block truncate max-w-[130px]">
                       {goal.category}
                     </span>
@@ -230,36 +502,61 @@ export const WinterArcMeasurableGoalsAnalysis: React.FC<WinterArcMeasurableGoals
                     {displayBaseline}
                   </td>
 
-                  {/* Current / Log with +/- buttons */}
+                  {/* Current / Log with +/- buttons and direct Google Fit sync badge */}
                   <td className="p-3 border-r border-black text-center">
-                    <div className="flex items-center justify-center gap-1.5">
-                      {onUpdateGoalCurrent && (
+                    <div className="flex flex-col items-center gap-1.5">
+                      <div className="flex items-center justify-center gap-1.5">
+                        {onUpdateGoalCurrent && (
+                          <button
+                            onClick={() => {
+                              const step = (goal.unit === '%' || goal.unit === 'hours' || goal.unit === 'liters') ? 0.5 : 100;
+                              onUpdateGoalCurrent(goal.id, -step);
+                            }}
+                            className="w-6 h-6 border border-black bg-white hover:bg-zinc-100 font-bold flex items-center justify-center cursor-pointer select-none print:hidden shadow-[1px_1px_0px_#000000] active:translate-x-0.5 active:translate-y-0.5 text-xs"
+                            title="Decrease current log"
+                          >
+                            -
+                          </button>
+                        )}
+
+                        <span className="font-black text-xs sm:text-sm text-black min-w-[75px] px-1.5 border border-zinc-300 bg-white py-0.5 shadow-inner">
+                          {displayCurrent}
+                        </span>
+
+                        {onUpdateGoalCurrent && (
+                          <button
+                            onClick={() => {
+                              const step = (goal.unit === '%' || goal.unit === 'hours' || goal.unit === 'liters') ? 0.5 : 100;
+                              onUpdateGoalCurrent(goal.id, step);
+                            }}
+                            className="w-6 h-6 border border-black bg-white hover:bg-zinc-100 font-bold flex items-center justify-center cursor-pointer select-none print:hidden shadow-[1px_1px_0px_#000000] active:translate-x-0.5 active:translate-y-0.5 text-xs"
+                            title="Increase current log"
+                          >
+                            +
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Quick 1-click apply Google Fit values button */}
+                      {isStepGoal && (googleFitData?.todaySteps || 0) > 0 && onSetGoalCurrent && (
                         <button
-                          onClick={() => {
-                            const step = (goal.unit === '%' || goal.unit === 'hours' || goal.unit === 'liters') ? 0.5 : 1;
-                            onUpdateGoalCurrent(goal.id, -step);
-                          }}
-                          className="w-6 h-6 border border-black bg-white hover:bg-zinc-100 font-bold flex items-center justify-center cursor-pointer select-none print:hidden shadow-[1px_1px_0px_#000000] active:translate-x-0.5 active:translate-y-0.5"
-                          title="Decrease current log"
+                          onClick={() => onSetGoalCurrent(goal.id, googleFitData!.todaySteps)}
+                          className="px-2 py-0.5 border border-black bg-[#ccff00] hover:bg-black hover:text-[#ccff00] text-[9px] font-black uppercase flex items-center gap-1 cursor-pointer transition-colors shadow-[1px_1px_0px_#000000] print:hidden"
+                          title="Apply today's Google Fit steps directly to this goal"
                         >
-                          -
+                          <Footprints className="w-2.5 h-2.5" />
+                          <span>Sync: {googleFitData!.todaySteps.toLocaleString()} steps</span>
                         </button>
                       )}
 
-                      <span className="font-black text-sm text-black min-w-[65px] px-1 border border-zinc-200 bg-white py-0.5">
-                        {displayCurrent}
-                      </span>
-
-                      {onUpdateGoalCurrent && (
+                      {isWeightGoal && googleFitData?.latestWeight && onSetGoalCurrent && goal.unit === 'kg' && (
                         <button
-                          onClick={() => {
-                            const step = (goal.unit === '%' || goal.unit === 'hours' || goal.unit === 'liters') ? 0.5 : 1;
-                            onUpdateGoalCurrent(goal.id, step);
-                          }}
-                          className="w-6 h-6 border border-black bg-white hover:bg-zinc-100 font-bold flex items-center justify-center cursor-pointer select-none print:hidden shadow-[1px_1px_0px_#000000] active:translate-x-0.5 active:translate-y-0.5"
-                          title="Increase current log"
+                          onClick={() => onSetGoalCurrent(goal.id, googleFitData!.latestWeight!)}
+                          className="px-2 py-0.5 border border-black bg-blue-100 hover:bg-black hover:text-white text-[9px] font-black uppercase flex items-center gap-1 cursor-pointer transition-colors shadow-[1px_1px_0px_#000000] print:hidden"
+                          title="Apply latest Google Fit weight directly to this goal"
                         >
-                          +
+                          <Scale className="w-2.5 h-2.5" />
+                          <span>Sync: {googleFitData!.latestWeight} kg</span>
                         </button>
                       )}
                     </div>
@@ -272,12 +569,12 @@ export const WinterArcMeasurableGoalsAnalysis: React.FC<WinterArcMeasurableGoals
 
                   {/* Progress Bar & Percentage */}
                   <td className="p-3 border-r border-black">
-                    <div className="space-y-1">
+                    <div className="space-y-1.5">
                       <div className="flex items-center justify-between text-[11px] font-bold">
                         <span className={isAchieved ? 'text-emerald-800 font-black' : 'text-black'}>
                           {progress}% {isAchieved ? '✓ MET' : ''}
                         </span>
-                        <span className="text-[10px] text-zinc-500">{deltaStr}</span>
+                        <span className="text-[10px] text-zinc-500 font-mono">{deltaStr}</span>
                       </div>
                       <div className="w-full bg-zinc-200 h-2.5 border border-black overflow-hidden">
                         <div

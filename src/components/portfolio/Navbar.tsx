@@ -68,11 +68,17 @@ export function Navbar({ onOpenContact, onOpenQRArtifact }: NavbarProps) {
             <span>BARCODES</span>
           </Link>
           <Link
+            href="/dashboard"
+            className="px-3 py-2 font-mono text-xs font-black tracking-wider text-black bg-[#ccff00] hover:bg-black hover:text-[#ccff00] transition-colors flex items-center gap-1 border-l-2 border-black"
+          >
+            <Activity className="w-3.5 h-3.5" />
+            <span>GOOGLE FIT</span>
+          </Link>
+          <Link
             href="/fitness-glass"
             className="px-3 py-2 font-mono text-xs font-black tracking-wider text-black hover:bg-black hover:text-[#ccff00] transition-colors flex items-center gap-1 border-l-2 border-black"
           >
-            <Activity className="w-3.5 h-3.5" />
-            <span>FITNESS</span>
+            <span>GLASS</span>
           </Link>
           <Link
             href="/fitness-glass/winter-arc-2026"
@@ -153,6 +159,13 @@ export function Navbar({ onOpenContact, onOpenQRArtifact }: NavbarProps) {
               className="block p-3 border-2 border-black bg-white font-mono text-xs font-black tracking-widest text-black shadow-[3px_3px_0px_#000000] hover:bg-[#ccff00]"
             >
               BARCODE PICK & STUDIO →
+            </Link>
+            <Link
+              href="/dashboard"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block p-3 border-2 border-black bg-[#ccff00] font-mono text-xs font-black tracking-widest text-black shadow-[3px_3px_0px_#000000]"
+            >
+              ⚡ GOOGLE FIT TELEMETRY DASHBOARD →
             </Link>
             <Link
               href="/fitness-glass"

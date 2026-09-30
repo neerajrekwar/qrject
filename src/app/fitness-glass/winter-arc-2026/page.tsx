@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import {
   Activity,
@@ -47,68 +47,37 @@ import {
 import { WinterArcProgressionChart } from '@/components/winter-arc/WinterArcProgressionChart';
 import { WinterArcMeasuringChartPrint } from '@/components/winter-arc/WinterArcMeasuringChartPrint';
 import { WinterArcAutomatedProgressGraph } from '@/components/winter-arc/WinterArcAutomatedProgressGraph';
-import { WinterArcMeasurableGoalsAnalysis } from '@/components/winter-arc/WinterArcMeasurableGoalsAnalysis';
+import {
+  WinterArcMeasurableGoalsAnalysis,
+  GoogleFitTelemetryState,
+} from '@/components/winter-arc/WinterArcMeasurableGoalsAnalysis';
 import { UsageBanner } from '@/components/auth/UsageBanner';
 
 export type ManagementMode = 'digital_web' | 'print_paper';
 
 const STORAGE_KEY = 'winter_arc_2026_state_v1';
 
-function getSavedWinterArcState(): Partial<WinterArcChallengeState> | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : null;
-  } catch {
-    return null;
-  }
-}
-
 export default function WinterArcPage() {
   // Dual Usage Management Mode
   const [managementMode, setManagementMode] = useState<ManagementMode>('digital_web');
 
-  const [athleteName, setAthleteName] = useState<string>(() => {
-    const saved = getSavedWinterArcState();
-    return saved?.athleteName || 'Neeraj Rekwar';
-  });
-
-  const [challengeTitle, setChallengeTitle] = useState<string>(() => {
-    const saved = getSavedWinterArcState();
-    return saved?.challengeTitle || 'Winter Arc 2026: 24-Hour Protocol & 90-Day Standard';
-  });
-
-  const [activeView, setActiveView] = useState<WinterArcViewMode>(() => {
-    const saved = getSavedWinterArcState();
-    return saved?.activeView || '24hrs_timetable';
-  });
-
-  const [printOrientation, setPrintOrientation] = useState<WinterArcOrientation>(() => {
-    const saved = getSavedWinterArcState();
-    return saved?.printOrientation || 'auto';
-  });
-
-  const [printStyle, setPrintStyle] = useState<WinterArcPrintStyle>(() => {
-    const saved = getSavedWinterArcState();
-    return saved?.printStyle || 'blank_paper_pen';
-  });
+  const [athleteName, setAthleteName] = useState<string>('Neeraj Rekwar');
+  const [challengeTitle, setChallengeTitle] = useState<string>(
+    'Winter Arc 2026: 24-Hour Protocol & 90-Day Standard'
+  );
+  const [activeView, setActiveView] = useState<WinterArcViewMode>('24hrs_timetable');
+  const [printOrientation, setPrintOrientation] = useState<WinterArcOrientation>('auto');
+  const [printStyle, setPrintStyle] = useState<WinterArcPrintStyle>('blank_paper_pen');
 
   // 24-Hour Slots state (default with zero preset checks)
-  const [slots24h, setSlots24h] = useState<WinterArc24HrSlot[]>(() => {
-    const saved = getSavedWinterArcState();
-    return saved?.slots24h || DEFAULT_WINTER_ARC_24H_SLOTS;
-  });
+  const [slots24h, setSlots24h] = useState<WinterArc24HrSlot[]>(DEFAULT_WINTER_ARC_24H_SLOTS);
 
   // 90-Day Matrix state (all clean, zero completed by default)
-  const [dayMatrix, setDayMatrix] = useState<WinterArcDayRecord[]>(() => {
-    const saved = getSavedWinterArcState();
-    return saved?.dayMatrix || generateInitial90DayMatrix();
-  });
+  const [dayMatrix, setDayMatrix] = useState<WinterArcDayRecord[]>(() => generateInitial90DayMatrix());
 
-  const [standards, setStandards] = useState<WinterArcGoalStandard[]>(() => {
-    const saved = getSavedWinterArcState();
-    return saved?.standards || DEFAULT_WINTER_ARC_STANDARDS;
-  });
+  const [standards, setStandards] = useState<WinterArcGoalStandard[]>(DEFAULT_WINTER_ARC_STANDARDS);
+
+  const [isLoaded, setIsLoaded] = useState<boolean>(false);
 
   // UI state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -143,9 +112,112 @@ export default function WinterArcPage() {
     setTimeout(() => setToastMessage(null), 2500);
   };
 
-  // Persist to localStorage
+  // Google Fit Cloud Telemetry Integration
+  const [googleFitData, setGoogleFitData] = useState<GoogleFitTelemetryState>({
+    isConnected: false,
+    userEmail: null,
+    userName: null,
+    todaySteps: 0,
+    avgSteps: 0,
+    totalSteps: 0,
+    latestWeight: null,
+    latestHeight: null,
+    activeMinutes: 0,
+    isLoading: true,
+  });
+
+  const fetchGoogleFitTelemetry = useCallback(async () => {
+    try {
+      setGoogleFitData((prev) => ({ ...prev, isLoading: true }));
+      const [statusRes, sumRes] = await Promise.all([
+        fetch('/api/google-fit/auth/status'),
+        fetch('/api/google-fit/summary?days=7'),
+      ]);
+
+      let isConnected = false;
+      let userEmail: string | null = null;
+      let userName: string | null = null;
+
+      if (statusRes.ok) {
+        const sData = await statusRes.json();
+        isConnected = Boolean(sData.connected);
+        userEmail = sData.user?.email || null;
+        userName = sData.user?.name || null;
+      }
+
+      let todaySteps = 0;
+      let avgSteps = 0;
+      let totalSteps = 0;
+      let latestWeight: number | null = null;
+      let latestHeight: number | null = null;
+      let activeMinutes = 0;
+      let isApiDisabled = false;
+      let apiActivationUrl: string | null = null;
+
+      if (sumRes.ok) {
+        const sumData = await sumRes.json();
+        if (sumData.userEmail) userEmail = sumData.userEmail;
+        if (sumData.userName) userName = sumData.userName;
+        isApiDisabled = Boolean(sumData.isApiDisabled);
+        apiActivationUrl = sumData.apiActivationUrl || null;
+        avgSteps = sumData.stats?.avgSteps || 0;
+        totalSteps = sumData.stats?.totalSteps || 0;
+        todaySteps = sumData.latest?.steps || 0;
+        latestWeight = sumData.latest?.weightKg || null;
+        latestHeight = sumData.latest?.heightMeters || null;
+        activeMinutes = sumData.latest?.activeMinutes || 0;
+      }
+
+      setGoogleFitData({
+        isConnected,
+        userEmail,
+        userName,
+        todaySteps,
+        avgSteps,
+        totalSteps,
+        latestWeight,
+        latestHeight,
+        activeMinutes,
+        isApiDisabled,
+        apiActivationUrl,
+        isLoading: false,
+        lastSyncedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      });
+    } catch (err) {
+      console.warn('Error fetching Google Fit data for Winter Arc:', err);
+      setGoogleFitData((prev) => ({ ...prev, isLoading: false }));
+    }
+  }, []);
+
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    fetchGoogleFitTelemetry();
+  }, [fetchGoogleFitTelemetry]);
+
+  // Restore persisted state from localStorage on client mount (prevents SSR hydration mismatch)
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const data: Partial<WinterArcChallengeState> = JSON.parse(saved);
+        if (data.athleteName) setAthleteName(data.athleteName);
+        if (data.challengeTitle) setChallengeTitle(data.challengeTitle);
+        if (data.activeView) setActiveView(data.activeView);
+        if (data.printOrientation) setPrintOrientation(data.printOrientation);
+        if (data.printStyle) setPrintStyle(data.printStyle);
+        if (Array.isArray(data.slots24h) && data.slots24h.length > 0) setSlots24h(data.slots24h);
+        if (Array.isArray(data.dayMatrix) && data.dayMatrix.length > 0) setDayMatrix(data.dayMatrix);
+        if (Array.isArray(data.standards) && data.standards.length > 0) setStandards(data.standards);
+      }
+    } catch (e) {
+      console.warn('Failed to load Winter Arc state from localStorage:', e);
+    } finally {
+      setIsLoaded(true);
+    }
+  }, []);
+
+  // Persist to localStorage only AFTER initial hydration load completes
+  useEffect(() => {
+    if (!isLoaded || typeof window === 'undefined') return;
     try {
       const payload: WinterArcChallengeState = {
         athleteName,
@@ -165,7 +237,17 @@ export default function WinterArcPage() {
     } catch (e) {
       console.warn('Failed to save to localStorage:', e);
     }
-  }, [athleteName, challengeTitle, activeView, printOrientation, printStyle, slots24h, dayMatrix, standards]);
+  }, [
+    isLoaded,
+    athleteName,
+    challengeTitle,
+    activeView,
+    printOrientation,
+    printStyle,
+    slots24h,
+    dayMatrix,
+    standards,
+  ]);
 
   // Handlers for 24-Hour Slots
   const handleToggleSlot = (id: string) => {
@@ -338,6 +420,64 @@ export default function WinterArcPage() {
         }
         return g;
       })
+    );
+  };
+
+  const handleSetGoalCurrent = (goalId: string, value: number) => {
+    setStandards((prev) =>
+      prev.map((g) => {
+        if (g.id !== goalId) return g;
+        const clamped = Math.max(0, value);
+        const updated = {
+          ...g,
+          currentNum: clamped,
+          currentStatus: `${clamped.toLocaleString()} ${g.unit || ''}`,
+        };
+        updated.percentAccomplished = computeWinterArcGoalProgress(updated);
+        return updated;
+      })
+    );
+    showToast(`Updated target log to ${value.toLocaleString()}`);
+  };
+
+  const handleApplyGoogleFitToGoals = () => {
+    if (!googleFitData) return;
+    const { todaySteps, latestWeight } = googleFitData;
+
+    setStandards((prev) =>
+      prev.map((g) => {
+        // 1. Step Goal
+        if (g.unit === 'steps' || g.name.toLowerCase().includes('step')) {
+          if (todaySteps > 0) {
+            const updated = {
+              ...g,
+              currentNum: todaySteps,
+              currentStatus: `${todaySteps.toLocaleString()} Steps`,
+            };
+            updated.percentAccomplished = computeWinterArcGoalProgress(updated);
+            return updated;
+          }
+        }
+
+        // 2. Weight Goal
+        if (latestWeight && (g.unit === 'kg' || g.name.toLowerCase().includes('weight'))) {
+          const updated = {
+            ...g,
+            currentNum: latestWeight,
+            currentStatus: `${latestWeight} kg`,
+          };
+          updated.percentAccomplished = computeWinterArcGoalProgress(updated);
+          return updated;
+        }
+
+        return g;
+      })
+    );
+
+    showToast(
+      todaySteps > 0
+        ? `Aligned Google Fit live steps (${todaySteps.toLocaleString()} steps) to Measurable Goals Matrix`
+        : 'Google Fit synced (awaiting mobile device step sync)'
     );
   };
 
@@ -1445,7 +1585,11 @@ export default function WinterArcPage() {
           <WinterArcMeasurableGoalsAnalysis
             standards={standards}
             printStyle={printStyle}
+            googleFitData={googleFitData}
+            onRefreshGoogleFit={fetchGoogleFitTelemetry}
+            onApplyGoogleFitToGoals={handleApplyGoogleFitToGoals}
             onUpdateGoalCurrent={handleUpdateGoalCurrent}
+            onSetGoalCurrent={handleSetGoalCurrent}
             onDeleteGoal={handleDeleteGoal}
             onAddGoal={handleAddGoal}
             onResetGoals={handleResetGoals}
