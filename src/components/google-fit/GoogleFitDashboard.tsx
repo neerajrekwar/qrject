@@ -50,6 +50,8 @@ export const GoogleFitDashboard: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [errorNotice, setErrorNotice] = useState<string | null>(null);
   const [missingActivityScope, setMissingActivityScope] = useState<boolean>(false);
+  const [isApiDisabled, setIsApiDisabled] = useState<boolean>(false);
+  const [apiActivationUrl, setApiActivationUrl] = useState<string | null>(null);
 
   const [summaries, setSummaries] = useState<DailySummaryMetric[]>([]);
   const [latestMetric, setLatestMetric] = useState<DailySummaryMetric | null>(null);
@@ -101,6 +103,10 @@ export const GoogleFitDashboard: React.FC = () => {
         setIsDemoMode(Boolean(sumData.isSimulated));
         if (sumData.userEmail) setConnectedEmail(sumData.userEmail);
         if (sumData.stats?.avgSteps !== undefined) setAvgSteps(sumData.stats.avgSteps);
+        setIsApiDisabled(Boolean(sumData.isApiDisabled));
+        if (sumData.apiActivationUrl) {
+          setApiActivationUrl(sumData.apiActivationUrl);
+        }
         if (sumData.hasActivityScope === false) {
           setMissingActivityScope(true);
         } else {
@@ -384,6 +390,55 @@ export const GoogleFitDashboard: React.FC = () => {
         </div>
       </div>
 
+      {/* Critical Alert: Google Cloud Fitness API Disabled */}
+      {isApiDisabled && (
+        <div className="bg-amber-50 border-4 border-amber-600 p-5 shadow-[6px_6px_0px_#000000] text-black">
+          <div className="flex items-start gap-3.5">
+            <div className="w-10 h-10 bg-amber-500 text-black border-2 border-black flex items-center justify-center font-black shrink-0 shadow-[2px_2px_0px_#000000]">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="bg-amber-500 text-black text-[10px] font-black uppercase px-2 py-0.5 border border-black">
+                  Action Required in Google Cloud
+                </span>
+                <span className="text-[10px] font-mono bg-zinc-200 px-1.5 py-0.5 border border-zinc-400 font-bold">
+                  Project: 263261388820
+                </span>
+              </div>
+              <h3 className="text-base sm:text-lg font-black uppercase text-black mt-1.5 tracking-tight">
+                Fitness API is Disabled in Your Google Cloud Console
+              </h3>
+              <p className="text-xs sm:text-sm text-zinc-800 font-sans mt-1 leading-relaxed">
+                Your account ({userDisplayEmail}) is securely authenticated, but Google Cloud Project <strong>263261388820</strong> has not enabled the <strong>Google Fitness API</strong> yet. Google automatically blocks 100% of step data queries and health metric writes until this API is enabled in your Google Cloud Console.
+              </p>
+              <div className="mt-3.5 flex flex-wrap items-center gap-3">
+                <a
+                  href={
+                    apiActivationUrl ||
+                    'https://console.developers.google.com/apis/api/fitness.googleapis.com/overview?project=263261388820'
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2.5 border-2 border-black bg-black text-[#ccff00] hover:bg-[#ccff00] hover:text-black font-black text-xs uppercase shadow-[3px_3px_0px_#000000] transition-all flex items-center gap-2"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  <span>Enable Fitness API in Google Cloud &rarr;</span>
+                </a>
+                <button
+                  onClick={() => checkStatusAndData(false)}
+                  disabled={isRefreshing}
+                  className="px-3.5 py-2.5 border-2 border-black bg-white hover:bg-zinc-100 font-bold text-xs uppercase shadow-[2px_2px_0px_#000000] flex items-center gap-1.5"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+                  <span>I enabled it (Sync Again)</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Notice if signed in but not connected with Google Fit */}
       {!isConnected && !isDemoMode && (
         <div className="bg-amber-50 border-4 border-amber-600 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-[4px_4px_0px_#000000] text-xs">
@@ -409,7 +464,7 @@ export const GoogleFitDashboard: React.FC = () => {
       )}
 
       {/* Notice if signed in but missing activity read scope */}
-      {isConnected && missingActivityScope && (
+      {isConnected && missingActivityScope && !isApiDisabled && (
         <div className="bg-rose-50 border-4 border-rose-600 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-[4px_4px_0px_#000000] text-xs">
           <div className="flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
@@ -433,7 +488,7 @@ export const GoogleFitDashboard: React.FC = () => {
       )}
 
       {/* Notice if new account with zero data yet */}
-      {isConnected && !missingActivityScope && currentSteps === 0 && !currentWeight && (
+      {isConnected && !isApiDisabled && !missingActivityScope && currentSteps === 0 && !currentWeight && (
         <div className="bg-[#ccff00]/20 border-2 border-black p-4 flex items-start gap-3 shadow-[3px_3px_0px_#000000] text-xs">
           <Info className="w-5 h-5 text-black shrink-0 mt-0.5" />
           <div className="space-y-1.5">

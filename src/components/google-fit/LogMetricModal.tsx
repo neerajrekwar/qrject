@@ -13,6 +13,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Sparkles,
+  ExternalLink,
 } from 'lucide-react';
 import { GOOGLE_FIT_ACTIVITY_TYPES } from '@/lib/google-fit/types';
 
@@ -26,6 +27,7 @@ export const LogMetricModal: React.FC<LogMetricModalProps> = ({ isOpen, onClose,
   const [activeTab, setActiveTab] = useState<'health' | 'workout'>('health');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [apiDisabledUrl, setApiDisabledUrl] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Health Metric Form State
@@ -110,6 +112,12 @@ export const LogMetricModal: React.FC<LogMetricModalProps> = ({ isOpen, onClose,
 
       const data = await res.json();
       if (!res.ok) {
+        if (data.isApiDisabled || data.error?.includes('Fitness API') || data.error?.includes('disabled')) {
+          setApiDisabledUrl(
+            data.activationUrl ||
+              'https://console.developers.google.com/apis/api/fitness.googleapis.com/overview?project=263261388820'
+          );
+        }
         throw new Error(data.error || 'Failed to submit reading.');
       }
 
@@ -161,6 +169,12 @@ export const LogMetricModal: React.FC<LogMetricModalProps> = ({ isOpen, onClose,
 
       const data = await res.json();
       if (!res.ok) {
+        if (data.isApiDisabled || data.error?.includes('Fitness API') || data.error?.includes('disabled')) {
+          setApiDisabledUrl(
+            data.activationUrl ||
+              'https://console.developers.google.com/apis/api/fitness.googleapis.com/overview?project=263261388820'
+          );
+        }
         throw new Error(data.error || 'Failed to push workout session.');
       }
 
@@ -233,13 +247,40 @@ export const LogMetricModal: React.FC<LogMetricModalProps> = ({ isOpen, onClose,
         {/* Status Messages */}
         <div className="p-4 pb-0">
           {errorMessage && (
-            <div className="p-3 bg-rose-100 border-2 border-rose-500 text-rose-900 text-xs font-bold flex items-start gap-2 mb-3">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>{errorMessage}</span>
+            <div className="p-3 bg-rose-100 border-2 border-rose-500 text-rose-900 text-xs font-bold mb-3 shadow-[2px_2px_0px_#000000]">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-700" />
+                <div className="flex-1">
+                  <div className="font-black uppercase tracking-tight">
+                    {apiDisabledUrl || errorMessage.includes('Fitness API')
+                      ? 'Action Required: Enable Fitness API in Google Cloud'
+                      : 'Submission Error'}
+                  </div>
+                  <p className="mt-1 font-sans font-normal text-rose-950 text-xs leading-relaxed">
+                    {apiDisabledUrl || errorMessage.includes('Fitness API')
+                      ? 'Google Fitness API has not been enabled in your Google Cloud Project (263261388820). Google rejects all data reads and writes until this API is enabled in your Google Cloud Console.'
+                      : errorMessage}
+                  </p>
+                  {(apiDisabledUrl || errorMessage.includes('Fitness API')) && (
+                    <a
+                      href={
+                        apiDisabledUrl ||
+                        'https://console.developers.google.com/apis/api/fitness.googleapis.com/overview?project=263261388820'
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 mt-2.5 px-3 py-1.5 bg-black text-[#ccff00] hover:bg-[#ccff00] hover:text-black font-mono font-bold text-xs border border-black shadow-[2px_2px_0px_#000000] transition-colors"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>Enable Fitness API in Google Cloud Console &rarr;</span>
+                    </a>
+                  )}
+                </div>
+              </div>
             </div>
           )}
           {successMessage && (
-            <div className="p-3 bg-emerald-100 border-2 border-emerald-500 text-emerald-900 text-xs font-bold flex items-start gap-2 mb-3">
+            <div className="p-3 bg-emerald-100 border-2 border-emerald-500 text-emerald-900 text-xs font-bold flex items-start gap-2 mb-3 shadow-[2px_2px_0px_#000000]">
               <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
               <span>{successMessage}</span>
             </div>

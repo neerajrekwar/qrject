@@ -225,6 +225,46 @@ export async function refreshAccessToken(refreshToken: string): Promise<{
 // 2. Data Source Initialization & Caching
 // ============================================================================
 
+export interface ApiDisabledInfo {
+  isDisabled: boolean;
+  activationUrl: string;
+  projectNumber?: string;
+  message?: string;
+}
+
+/**
+ * Checks if a Google Fit error response indicates that the Fitness API is disabled
+ * in the developer's Google Cloud project.
+ */
+export function parseFitnessApiDisabled(errorTextOrJson: unknown): ApiDisabledInfo {
+  const defaultUrl = 'https://console.developers.google.com/apis/api/fitness.googleapis.com/overview?project=263261388820';
+  if (!errorTextOrJson) return { isDisabled: false, activationUrl: defaultUrl };
+
+  const text = typeof errorTextOrJson === 'string' ? errorTextOrJson : JSON.stringify(errorTextOrJson);
+  if (
+    text.includes('Fitness API has not been used') ||
+    text.includes('SERVICE_DISABLED') ||
+    text.includes('accessNotConfigured') ||
+    (text.includes('403') && text.includes('fitness.googleapis.com'))
+  ) {
+    const urlMatch = text.match(/https:\/\/[^\s"'\\]+/);
+    const projMatch = text.match(/project[=:\s/]+(\d+)/i) || text.match(/projects\/(\d+)/i);
+    const projectNumber = projMatch ? projMatch[1] : '263261388820';
+    const activationUrl = urlMatch
+      ? urlMatch[0]
+      : `https://console.developers.google.com/apis/api/fitness.googleapis.com/overview?project=${projectNumber}`;
+
+    return {
+      isDisabled: true,
+      activationUrl,
+      projectNumber,
+      message: `Google Fitness API is disabled in Google Cloud Project ${projectNumber}. Please enable it to sync or log health data: ${activationUrl}`,
+    };
+  }
+
+  return { isDisabled: false, activationUrl: defaultUrl };
+}
+
 /**
  * Ensures a custom "raw:" data source exists in Google Fit before writing data points.
  * Creates the data source via POST /users/me/dataSources if it doesn't already exist.
@@ -243,6 +283,16 @@ export async function ensureRawDataSource(
 
   if (checkRes.ok) {
     return dataStreamId;
+  }
+
+  if (checkRes.status === 403) {
+    const checkErrorText = await checkRes.text();
+    const disabledInfo = parseFitnessApiDisabled(checkErrorText);
+    if (disabledInfo.isDisabled) {
+      throw new Error(
+        `Fitness API is disabled in your Google Cloud Project (${disabledInfo.projectNumber || '263261388820'}). Enable it here: ${disabledInfo.activationUrl}`
+      );
+    }
   }
 
   // Construct Data Source schema according to Google Fit requirements
@@ -294,6 +344,12 @@ export async function ensureRawDataSource(
 
   if (!createRes.ok && createRes.status !== 409) {
     const errorText = await createRes.text();
+    const disabledInfo = parseFitnessApiDisabled(errorText);
+    if (disabledInfo.isDisabled) {
+      throw new Error(
+        `Fitness API is disabled in your Google Cloud Project (${disabledInfo.projectNumber || '263261388820'}). Enable it here: ${disabledInfo.activationUrl}`
+      );
+    }
     console.warn(`DataSource creation note (${dataTypeName}):`, errorText);
   }
 
@@ -444,6 +500,8 @@ export interface FetchSummariesResult {
   diagnostics: {
     stepsAggregateStatus?: number;
     stepsAggregateError?: string;
+    isApiDisabled?: boolean;
+    apiActivationUrl?: string;
     totalStepsFetched: number;
     dataSourcesCount: number;
     latestBody: {
@@ -480,6 +538,8 @@ export async function fetchAggregatedDailySummaries(
   let stepsBuckets: any[] = [];
   let stepsAggregateStatus: number | undefined;
   let stepsAggregateError: string | undefined;
+  let isApiDisabled = false;
+  let apiActivationUrl: string | undefined;
 
   try {
     const stepsRes = await fetch(`${GOOGLE_FIT_BASE_URL}/dataset:aggregate`, {
@@ -498,10 +558,20 @@ export async function fetchAggregatedDailySummaries(
     } else {
       stepsAggregateError = await stepsRes.text();
       console.warn(`Google Fit steps aggregate warning (${stepsRes.status}):`, stepsAggregateError);
+      const disabledInfo = parseFitnessApiDisabled(stepsAggregateError);
+      if (disabledInfo.isDisabled) {
+        isApiDisabled = true;
+        apiActivationUrl = disabledInfo.activationUrl;
+      }
     }
   } catch (err: any) {
     stepsAggregateError = err.message;
     console.error('Failed to fetch steps aggregate:', err);
+    const disabledInfo = parseFitnessApiDisabled(err.message);
+    if (disabledInfo.isDisabled) {
+      isApiDisabled = true;
+      apiActivationUrl = disabledInfo.activationUrl;
+    }
   }
 
   // 2. Map returned step buckets by ISO date string (YYYY-MM-DD)
@@ -714,6 +784,8 @@ export async function fetchAggregatedDailySummaries(
     diagnostics: {
       stepsAggregateStatus,
       stepsAggregateError,
+      isApiDisabled,
+      apiActivationUrl,
       totalStepsFetched,
       dataSourcesCount: latestBody.dataSourcesCount || 0,
       latestBody: {
@@ -776,6 +848,12 @@ export async function postManualReading(
 
     if (!res.ok) {
       const err = await res.text();
+      const disabledInfo = parseFitnessApiDisabled(err);
+      if (disabledInfo.isDisabled) {
+        throw new Error(
+          `Fitness API is disabled in your Google Cloud Project (${disabledInfo.projectNumber || '263261388820'}). Enable it here: ${disabledInfo.activationUrl}`
+        );
+      }
       throw new Error(`Failed to write weight dataset: ${err}`);
     }
     inserted.push('weight');
@@ -812,6 +890,12 @@ export async function postManualReading(
 
     if (!res.ok) {
       const err = await res.text();
+      const disabledInfo = parseFitnessApiDisabled(err);
+      if (disabledInfo.isDisabled) {
+        throw new Error(
+          `Fitness API is disabled in your Google Cloud Project (${disabledInfo.projectNumber || '263261388820'}). Enable it here: ${disabledInfo.activationUrl}`
+        );
+      }
       throw new Error(`Failed to write height dataset: ${err}`);
     }
     inserted.push('height');
@@ -857,6 +941,12 @@ export async function postManualReading(
 
     if (!res.ok) {
       const err = await res.text();
+      const disabledInfo = parseFitnessApiDisabled(err);
+      if (disabledInfo.isDisabled) {
+        throw new Error(
+          `Fitness API is disabled in your Google Cloud Project (${disabledInfo.projectNumber || '263261388820'}). Enable it here: ${disabledInfo.activationUrl}`
+        );
+      }
       throw new Error(`Failed to write blood pressure dataset: ${err}`);
     }
     inserted.push('blood_pressure');
@@ -904,6 +994,12 @@ export async function putWorkoutSession(
 
   if (!sessionRes.ok) {
     const errorText = await sessionRes.text();
+    const disabledInfo = parseFitnessApiDisabled(errorText);
+    if (disabledInfo.isDisabled) {
+      throw new Error(
+        `Fitness API is disabled in your Google Cloud Project (${disabledInfo.projectNumber || '263261388820'}). Enable it here: ${disabledInfo.activationUrl}`
+      );
+    }
     throw new Error(`Failed to save workout session (${sessionRes.status}): ${errorText}`);
   }
 

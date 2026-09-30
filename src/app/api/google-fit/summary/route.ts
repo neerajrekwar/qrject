@@ -97,12 +97,17 @@ export async function GET(request: NextRequest) {
       diagnostics: diagnosticsData,
     });
 
+    const isApiDisabled = Boolean(diagnosticsData?.isApiDisabled);
+    const apiActivationUrl = diagnosticsData?.apiActivationUrl || null;
+
     return NextResponse.json({
       success: true,
       isAuthenticated: true,
       isSimulated,
       userEmail,
       userName,
+      isApiDisabled,
+      apiActivationUrl,
       hasActivityScope,
       hasBodyScope,
       grantedScope: tokens.scope,

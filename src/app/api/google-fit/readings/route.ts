@@ -129,6 +129,19 @@ export async function POST(request: NextRequest) {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to record reading';
     console.error('Record reading API error:', message);
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    const isApiDisabled =
+      message.includes('Fitness API is disabled') ||
+      message.includes('Fitness API has not been used') ||
+      message.includes('SERVICE_DISABLED') ||
+      message.includes('accessNotConfigured');
+    return NextResponse.json(
+      {
+        success: false,
+        error: message,
+        isApiDisabled,
+        activationUrl: 'https://console.developers.google.com/apis/api/fitness.googleapis.com/overview?project=263261388820',
+      },
+      { status: 500 }
+    );
   }
 }
