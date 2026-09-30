@@ -56,13 +56,14 @@ import {
 // ============================================================================
 
 interface BloodPressureData {
-  systolic: number;
-  diastolic: number;
-  meanArterialPressure: number;
-  status: 'Normal' | 'Elevated' | 'Stage 1' | 'Stage 2' | 'Hypertensive Crisis' | 'Unknown';
+  systolic?: number | null;
+  diastolic?: number | null;
+  meanArterialPressure?: number | null;
+  status: 'Normal' | 'Elevated' | 'Stage 1' | 'Stage 2' | 'Hypertensive Crisis' | 'Not Recorded' | 'Unknown';
   bodyPosition?: string;
   location?: string;
   timestamp?: string;
+  isRecorded?: boolean;
 }
 
 interface TelemetryMetrics {
@@ -121,6 +122,7 @@ export default function DashboardPage() {
   const [isDemoMode, setIsDemoMode] = useState<boolean>(false);
   const [isConfigured, setIsConfigured] = useState<boolean>(true);
   const [user, setUser] = useState<UserProfile | null>(null);
+  const [demoBpNotRecorded, setDemoBpNotRecorded] = useState<boolean>(false);
 
   // Telemetry Data State
   const [metrics, setMetrics] = useState<TelemetryMetrics | null>(null);
@@ -401,6 +403,18 @@ export default function DashboardPage() {
   const diaVal = parseFloat(diastolicInput);
   const isBpValid = !isNaN(sysVal) && !isNaN(diaVal) && sysVal > diaVal;
 
+  // Explicit check for Blood Pressure: whether recorded or pending measurement
+  const isBpRecorded = Boolean(
+    (!isDemoMode || !demoBpNotRecorded) &&
+    metrics?.bloodPressure &&
+    metrics.bloodPressure.isRecorded !== false &&
+    metrics.bloodPressure.status !== 'Not Recorded' &&
+    typeof metrics.bloodPressure.systolic === 'number' &&
+    metrics.bloodPressure.systolic > 0 &&
+    typeof metrics.bloodPressure.diastolic === 'number' &&
+    metrics.bloodPressure.diastolic > 0
+  );
+
   return (
     <div className="min-h-screen bg-[#f5f5f0] text-black font-sans pb-20 selection:bg-[#ccff00] selection:text-black">
       {/* ==================================================================== */}
@@ -605,7 +619,7 @@ export default function DashboardPage() {
 
         {/* Demo Mode Notice */}
         {isDemoMode && !isConnected && (
-          <div className="border-2 border-black bg-[#ccff00]/30 border-dashed p-3 text-xs font-mono flex items-center justify-between gap-2">
+          <div className="border-2 border-black bg-[#ccff00]/30 border-dashed p-3 text-xs font-mono flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-black font-semibold">
               <Sparkles className="w-4 h-4 text-black shrink-0" />
               <span>
@@ -613,12 +627,26 @@ export default function DashboardPage() {
                 points. Connect your Google Fit account to view your live device sensors.
               </span>
             </div>
-            <a
-              href="/api/auth/login?returnTo=/dashboard"
-              className="bg-black text-[#ccff00] font-black uppercase px-2.5 py-1 text-[11px] whitespace-nowrap hover:bg-[#ccff00] hover:text-black border border-black transition-colors"
-            >
-              Connect Real Account
-            </a>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setDemoBpNotRecorded(!demoBpNotRecorded)}
+                className={`px-2.5 py-1 text-[11px] font-black uppercase border border-black shadow-[1px_1px_0px_#000000] transition-colors ${
+                  demoBpNotRecorded
+                    ? 'bg-rose-500 text-white'
+                    : 'bg-white text-black hover:bg-zinc-100'
+                }`}
+                title="Toggle Blood Pressure between Recorded and Not Recorded states"
+              >
+                {demoBpNotRecorded ? 'Test BP: ∅ Not Recorded' : 'Test BP: ✓ Recorded'}
+              </button>
+              <a
+                href="/api/auth/login?returnTo=/dashboard"
+                className="bg-black text-[#ccff00] font-black uppercase px-2.5 py-1 text-[11px] whitespace-nowrap hover:bg-[#ccff00] hover:text-black border border-black shadow-[1px_1px_0px_#000000] transition-colors"
+              >
+                Connect Real Account
+              </a>
+            </div>
           </div>
         )}
 
@@ -723,19 +751,27 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* ---------------- CARD 3: BLOOD PRESSURE ---------------- */}
-            <div className="border-2 border-black bg-white p-5 shadow-[4px_4px_0px_#000000] relative flex flex-col justify-between hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[3px_3px_0px_#000000] transition-all">
+            {/* ---------------- CARD 3: BLOOD PRESSURE (NOT RECORDED CHECK SET) ---------------- */}
+            <div
+              className={`border-2 border-black p-5 shadow-[4px_4px_0px_#000000] relative flex flex-col justify-between hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[3px_3px_0px_#000000] transition-all ${
+                isBpRecorded ? 'bg-white' : 'bg-zinc-50 border-dashed border-zinc-700'
+              }`}
+            >
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-mono text-xs font-black uppercase tracking-wider text-zinc-600">
                     Blood Pressure
                   </span>
-                  <div className="w-8 h-8 rounded-none border-2 border-black bg-rose-100 flex items-center justify-center">
-                    <HeartPulse className="w-4 h-4 text-rose-600" />
+                  <div
+                    className={`w-8 h-8 rounded-none border-2 border-black flex items-center justify-center ${
+                      isBpRecorded ? 'bg-rose-100' : 'bg-zinc-200'
+                    }`}
+                  >
+                    <HeartPulse className={`w-4 h-4 ${isBpRecorded ? 'text-rose-600' : 'text-zinc-500'}`} />
                   </div>
                 </div>
 
-                {metrics?.bloodPressure ? (
+                {isBpRecorded && metrics?.bloodPressure?.systolic && metrics?.bloodPressure?.diastolic ? (
                   <div>
                     <div className="flex items-baseline gap-1.5">
                       <span className="text-3xl font-black tracking-tight text-black font-mono">
@@ -743,20 +779,29 @@ export default function DashboardPage() {
                       </span>
                       <span className="font-mono text-xs font-bold text-zinc-500">mmHg</span>
                     </div>
-                    <div className="font-mono text-xs text-zinc-500 mt-0.5">
-                      MAP: {metrics.bloodPressure.meanArterialPressure} mmHg
+                    <div className="font-mono text-xs text-zinc-500 mt-0.5 flex items-center gap-2">
+                      <span>MAP: {metrics.bloodPressure.meanArterialPressure} mmHg</span>
+                      {metrics.bloodPressure.bodyPosition && (
+                        <span>&bull; {metrics.bloodPressure.bodyPosition}</span>
+                      )}
                     </div>
                   </div>
                 ) : (
                   <div>
-                    <div className="text-3xl font-black tracking-tight text-black font-mono">— / —</div>
-                    <div className="font-mono text-xs text-zinc-400 mt-0.5">No readings logged</div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-2xl font-black tracking-tight text-zinc-700 font-mono">
+                        Not Recorded
+                      </span>
+                    </div>
+                    <div className="font-mono text-xs text-zinc-500 mt-0.5">
+                      Baseline pending &bull; No reading in Google Fit
+                    </div>
                   </div>
                 )}
               </div>
 
-              <div className="mt-4 pt-3 border-t-2 border-zinc-100 flex items-center justify-between">
-                {metrics?.bloodPressure?.status ? (
+              <div className="mt-4 pt-3 border-t-2 border-zinc-200 flex items-center justify-between">
+                {isBpRecorded && metrics?.bloodPressure?.status ? (
                   <span
                     className={`font-mono text-[10px] font-black uppercase px-2 py-0.5 border border-black ${
                       metrics.bloodPressure.status === 'Normal'
@@ -769,7 +814,9 @@ export default function DashboardPage() {
                     {metrics.bloodPressure.status}
                   </span>
                 ) : (
-                  <span className="font-mono text-[10px] text-zinc-400">AHA Guideline</span>
+                  <span className="font-mono text-[10px] font-black uppercase px-2 py-0.5 border border-dashed border-zinc-400 bg-zinc-100 text-zinc-600">
+                    Not Recorded
+                  </span>
                 )}
                 <button
                   onClick={() => {
@@ -777,9 +824,13 @@ export default function DashboardPage() {
                     setShowModal(true);
                     setModalTab('biometrics');
                   }}
-                  className="font-mono text-[11px] font-black uppercase text-rose-700 hover:underline flex items-center gap-0.5"
+                  className={`font-mono text-[11px] font-black uppercase flex items-center gap-0.5 transition-all ${
+                    isBpRecorded
+                      ? 'text-rose-700 hover:underline'
+                      : 'bg-black text-[#ccff00] px-2.5 py-1 border border-black hover:bg-[#ccff00] hover:text-black shadow-[1px_1px_0px_#000000]'
+                  }`}
                 >
-                  <span>Log BP</span>
+                  <span>{isBpRecorded ? 'Update' : '+ Record BP'}</span>
                   <ChevronRight className="w-3 h-3" />
                 </button>
               </div>

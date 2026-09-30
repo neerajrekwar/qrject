@@ -376,7 +376,8 @@ export async function fetchLatestBodyMetrics(accessToken: string): Promise<{
   let heightMeters: number | null = null;
   let bloodPressure: DailySummaryMetric['bloodPressure'] = null;
 
-  const nowNanos = millisToNanosStr(Date.now());
+  // Use a 48h future buffer so clock skew does not drop fresh readings
+  const nowNanos = millisToNanosStr(Date.now() + 86400000 * 2);
   // Use start 0 (epoch 0) so historical profile entries (like height set years ago) are retrieved
   const fetchDatasetPoints = async (
     dataSourceId: string,
@@ -461,14 +462,13 @@ export async function fetchLatestBodyMetrics(accessToken: string): Promise<{
             }
           }
 
-          // Check for blood pressure if still missing
-          if (bloodPressure === null && src.dataType?.name === 'com.google.blood_pressure') {
+          // Check for blood pressure
+          if (src.dataType?.name === 'com.google.blood_pressure' || src.dataStreamId.includes('blood_pressure')) {
             const pts = await fetchDatasetPoints(src.dataStreamId);
-            if (pts.length > 0) {
-              const lastPt = pts[pts.length - 1];
-              const sys = lastPt.value?.[0]?.fpVal ?? null;
-              const dia = lastPt.value?.[1]?.fpVal ?? null;
-              if (sys !== null && dia !== null) {
+            for (const pt of pts) {
+              const sys = pt.value?.[0]?.fpVal ?? pt.value?.[0]?.intVal ?? null;
+              const dia = pt.value?.[1]?.fpVal ?? pt.value?.[1]?.intVal ?? null;
+              if (sys !== null && dia !== null && sys > 0 && dia > 0) {
                 const map = Math.round((2 * dia + sys) / 3);
                 let classification: 'Normal' | 'Elevated' | 'Stage 1' | 'Stage 2' | 'Hypertensive Crisis' = 'Normal';
                 if (sys >= 180 || dia >= 120) classification = 'Hypertensive Crisis';
@@ -477,8 +477,8 @@ export async function fetchLatestBodyMetrics(accessToken: string): Promise<{
                 else if (sys >= 120 && dia < 80) classification = 'Elevated';
 
                 bloodPressure = {
-                  systolic: sys,
-                  diastolic: dia,
+                  systolic: Math.round(sys),
+                  diastolic: Math.round(dia),
                   meanArterialPressure: map,
                   status: classification,
                 };

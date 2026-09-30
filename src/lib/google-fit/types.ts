@@ -162,7 +162,7 @@ export interface DailySummaryMetric {
     systolic: number;
     diastolic: number;
     meanArterialPressure: number;
-    status: 'Normal' | 'Elevated' | 'Stage 1' | 'Stage 2' | 'Hypertensive Crisis' | 'Unknown';
+    status: 'Normal' | 'Elevated' | 'Stage 1' | 'Stage 2' | 'Hypertensive Crisis' | 'Not Recorded' | 'Unknown';
   } | null;
   bmi: number | null;
   activeMinutes: number;

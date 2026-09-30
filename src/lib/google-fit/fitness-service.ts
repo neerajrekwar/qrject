@@ -416,13 +416,14 @@ export async function insertBiometricMetrics(
 // ============================================================================
 
 export interface BloodPressureReading {
-  systolic: number;
-  diastolic: number;
-  meanArterialPressure: number;
-  status: 'Normal' | 'Elevated' | 'Stage 1' | 'Stage 2' | 'Hypertensive Crisis' | 'Unknown';
+  systolic: number | null;
+  diastolic: number | null;
+  meanArterialPressure: number | null;
+  status: 'Normal' | 'Elevated' | 'Stage 1' | 'Stage 2' | 'Hypertensive Crisis' | 'Not Recorded' | 'Unknown';
   bodyPosition?: string;
   location?: string;
   timestamp?: string;
+  isRecorded: boolean;
 }
 
 export interface Aggregated24hMetrics {
@@ -498,18 +499,17 @@ export async function getAggregated24hMetrics(
   }
 
   // 2. Fetch Latest Weight, Height, and Blood Pressure
-  let latestWeight: number | null = null;
-  let latestHeight: number | null = null;
-  let latestBP: BloodPressureReading | null = null;
+  // Use a 48h forward buffer (nowMs + 86400000 * 2) from epoch 0 to prevent
+  // clock drift or timezone offset from excluding recent data points.
+  const queryEndNs = msToNanos(nowMs + 86400000 * 2);
 
   // Helper to fetch points from a specific data source
   const fetchPoints = async (dataSourceId: string, startNs = '0') => {
     try {
-      const nowNs = msToNanos(nowMs);
       const res = await fitness.users.dataSources.datasets.get({
         userId: 'me',
         dataSourceId,
-        datasetId: `${startNs}-${nowNs}`,
+        datasetId: `${startNs}-${queryEndNs}`,
       });
       return res.data.point || [];
     } catch {
@@ -517,87 +517,163 @@ export async function getAggregated24hMetrics(
     }
   };
 
-  // Check derived streams first (standard Google Fit Android merge streams)
-  const weightPoints = await fetchPoints('derived:com.google.weight:com.google.android.gms:merge_weight');
-  if (weightPoints.length > 0) {
-    const val = weightPoints[weightPoints.length - 1].value?.[0]?.fpVal;
-    if (typeof val === 'number') latestWeight = Number(val.toFixed(1));
+  // Discover all active data sources registered in the user's Google Fit account
+  let allDataSources: fitness_v1.Schema$DataSource[] = [];
+  try {
+    const dsList = await fitness.users.dataSources.list({ userId: 'me' });
+    allDataSources = dsList.data.dataSource || [];
+  } catch (dsErr) {
+    console.warn('Note: Could not enumerate all data sources from Google Fit:', dsErr);
   }
 
-  const heightPoints = await fetchPoints('derived:com.google.height:com.google.android.gms:merge_height');
-  if (heightPoints.length > 0) {
-    const val = heightPoints[heightPoints.length - 1].value?.[0]?.fpVal;
-    if (typeof val === 'number') latestHeight = Number(val.toFixed(2));
-  }
+  // --------------------------------------------------------------------------
+  // A. BLOOD PRESSURE FETCH & "NOT RECORDED" CHECK
+  // --------------------------------------------------------------------------
+  // Gather all potential blood pressure streams: standard merge, custom app stream, and any third-party monitor streams
+  const bpStreamIds = new Set<string>();
+  bpStreamIds.add('derived:com.google.blood_pressure:com.google.android.gms:merged');
+  bpStreamIds.add(`raw:com.google.blood_pressure:${APPLICATION_ID}:web:manual_entry:blood_pressure_source`);
 
-  // If any values are missing, enumerate user's active data sources to find manual/device streams
-  if (latestWeight === null || latestHeight === null || latestBP === null) {
-    try {
-      const dsList = await fitness.users.dataSources.list({ userId: 'me' });
-      for (const ds of dsList.data.dataSource || []) {
-        const streamId = ds.dataStreamId;
-        const typeName = ds.dataType?.name;
-        if (!streamId) continue;
-
-        if (latestWeight === null && typeName === 'com.google.weight') {
-          const pts = await fetchPoints(streamId);
-          if (pts.length > 0) {
-            const val = pts[pts.length - 1].value?.[0]?.fpVal;
-            if (typeof val === 'number') latestWeight = Number(val.toFixed(1));
-          }
-        }
-
-        if (latestHeight === null && typeName === 'com.google.height') {
-          const pts = await fetchPoints(streamId);
-          if (pts.length > 0) {
-            const val = pts[pts.length - 1].value?.[0]?.fpVal;
-            if (typeof val === 'number') latestHeight = Number(val.toFixed(2));
-          }
-        }
-
-        if (latestBP === null && typeName === 'com.google.blood_pressure') {
-          const pts = await fetchPoints(streamId);
-          if (pts.length > 0) {
-            const lastPt = pts[pts.length - 1];
-            const sys = lastPt.value?.[0]?.fpVal;
-            const dia = lastPt.value?.[1]?.fpVal;
-            const posCode = lastPt.value?.[2]?.intVal;
-            const locCode = lastPt.value?.[3]?.intVal;
-
-            if (typeof sys === 'number' && typeof dia === 'number') {
-              const map = Math.round((2 * dia + sys) / 3);
-              const posMap: Record<number, string> = {
-                1: 'Standing',
-                2: 'Sitting',
-                3: 'Lying Down',
-                4: 'Semi-recumbent',
-              };
-              const locMap: Record<number, string> = {
-                1: 'Left Upper Arm',
-                2: 'Right Upper Arm',
-                3: 'Left Wrist',
-                4: 'Right Wrist',
-              };
-
-              const ptMs = lastPt.startTimeNanos ? nanosToMs(lastPt.startTimeNanos) : undefined;
-
-              latestBP = {
-                systolic: Math.round(sys),
-                diastolic: Math.round(dia),
-                meanArterialPressure: map,
-                status: classifyBloodPressure(sys, dia),
-                bodyPosition: posCode ? posMap[posCode] || 'Unspecified' : 'Sitting',
-                location: locCode ? locMap[locCode] || 'Unspecified' : 'Left Upper Arm',
-                timestamp: ptMs ? new Date(ptMs).toISOString() : undefined,
-              };
-            }
-          }
-        }
-      }
-    } catch (dsErr) {
-      console.warn('Error reading data sources for latest metrics:', dsErr);
+  for (const ds of allDataSources) {
+    if (
+      ds.dataStreamId &&
+      (ds.dataType?.name === 'com.google.blood_pressure' ||
+        ds.dataStreamId.includes('blood_pressure'))
+    ) {
+      bpStreamIds.add(ds.dataStreamId);
     }
   }
+
+  let newestBpPoint: {
+    point: fitness_v1.Schema$DataPoint;
+    timestampNanos: bigint;
+  } | null = null;
+
+  for (const streamId of bpStreamIds) {
+    const points = await fetchPoints(streamId);
+    for (const pt of points) {
+      // Check both fpVal and intVal in case hardware monitor logs integer values
+      const sys = pt.value?.[0]?.fpVal ?? pt.value?.[0]?.intVal;
+      const dia = pt.value?.[1]?.fpVal ?? pt.value?.[1]?.intVal;
+
+      if (typeof sys === 'number' && typeof dia === 'number' && sys > 0 && dia > 0) {
+        const ptTimeNs = BigInt(pt.startTimeNanos || pt.endTimeNanos || '0');
+        if (!newestBpPoint || ptTimeNs > newestBpPoint.timestampNanos) {
+          newestBpPoint = { point: pt, timestampNanos: ptTimeNs };
+        }
+      }
+    }
+  }
+
+  let latestBP: BloodPressureReading;
+
+  if (newestBpPoint) {
+    const pt = newestBpPoint.point;
+    const sys = Math.round(pt.value?.[0]?.fpVal ?? pt.value?.[0]?.intVal ?? 0);
+    const dia = Math.round(pt.value?.[1]?.fpVal ?? pt.value?.[1]?.intVal ?? 0);
+    const posCode = pt.value?.[2]?.intVal;
+    const locCode = pt.value?.[3]?.intVal;
+
+    const map = Math.round((2 * dia + sys) / 3);
+    const posMap: Record<number, string> = {
+      1: 'Standing',
+      2: 'Sitting',
+      3: 'Lying Down',
+      4: 'Semi-recumbent',
+    };
+    const locMap: Record<number, string> = {
+      1: 'Left Upper Arm',
+      2: 'Right Upper Arm',
+      3: 'Left Wrist',
+      4: 'Right Wrist',
+    };
+
+    const ptMs = pt.startTimeNanos ? nanosToMs(pt.startTimeNanos) : undefined;
+
+    latestBP = {
+      systolic: sys,
+      diastolic: dia,
+      meanArterialPressure: map,
+      status: classifyBloodPressure(sys, dia),
+      bodyPosition: posCode ? posMap[posCode] || 'Unspecified' : 'Sitting',
+      location: locCode ? locMap[locCode] || 'Unspecified' : 'Left Upper Arm',
+      timestamp: ptMs ? new Date(ptMs).toISOString() : undefined,
+      isRecorded: true,
+    };
+  } else {
+    // Explicit "Not Recorded" state when no blood pressure readings exist in Google Fit
+    latestBP = {
+      systolic: null,
+      diastolic: null,
+      meanArterialPressure: null,
+      status: 'Not Recorded',
+      bodyPosition: 'Unspecified',
+      location: 'Unspecified',
+      isRecorded: false,
+    };
+  }
+
+  // --------------------------------------------------------------------------
+  // B. BODY WEIGHT FETCH
+  // --------------------------------------------------------------------------
+  const weightStreamIds = new Set<string>();
+  weightStreamIds.add('derived:com.google.weight:com.google.android.gms:merge_weight');
+  weightStreamIds.add(`raw:com.google.weight:${APPLICATION_ID}:web:manual_entry:weight_source`);
+
+  for (const ds of allDataSources) {
+    if (
+      ds.dataStreamId &&
+      (ds.dataType?.name === 'com.google.weight' || ds.dataStreamId.includes('weight'))
+    ) {
+      weightStreamIds.add(ds.dataStreamId);
+    }
+  }
+
+  let newestWeightPoint: { val: number; timestampNanos: bigint } | null = null;
+  for (const streamId of weightStreamIds) {
+    const points = await fetchPoints(streamId);
+    for (const pt of points) {
+      const val = pt.value?.[0]?.fpVal ?? pt.value?.[0]?.intVal;
+      if (typeof val === 'number' && val > 0) {
+        const ptTimeNs = BigInt(pt.startTimeNanos || pt.endTimeNanos || '0');
+        if (!newestWeightPoint || ptTimeNs > newestWeightPoint.timestampNanos) {
+          newestWeightPoint = { val: Number(val.toFixed(1)), timestampNanos: ptTimeNs };
+        }
+      }
+    }
+  }
+  const latestWeight = newestWeightPoint ? newestWeightPoint.val : null;
+
+  // --------------------------------------------------------------------------
+  // C. HEIGHT FETCH
+  // --------------------------------------------------------------------------
+  const heightStreamIds = new Set<string>();
+  heightStreamIds.add('derived:com.google.height:com.google.android.gms:merge_height');
+  heightStreamIds.add(`raw:com.google.height:${APPLICATION_ID}:web:manual_entry:height_source`);
+
+  for (const ds of allDataSources) {
+    if (
+      ds.dataStreamId &&
+      (ds.dataType?.name === 'com.google.height' || ds.dataStreamId.includes('height'))
+    ) {
+      heightStreamIds.add(ds.dataStreamId);
+    }
+  }
+
+  let newestHeightPoint: { val: number; timestampNanos: bigint } | null = null;
+  for (const streamId of heightStreamIds) {
+    const points = await fetchPoints(streamId);
+    for (const pt of points) {
+      const val = pt.value?.[0]?.fpVal ?? pt.value?.[0]?.intVal;
+      if (typeof val === 'number' && val > 0) {
+        const ptTimeNs = BigInt(pt.startTimeNanos || pt.endTimeNanos || '0');
+        if (!newestHeightPoint || ptTimeNs > newestHeightPoint.timestampNanos) {
+          newestHeightPoint = { val: Number(val.toFixed(2)), timestampNanos: ptTimeNs };
+        }
+      }
+    }
+  }
+  const latestHeight = newestHeightPoint ? newestHeightPoint.val : null;
 
   // Calculate BMI if weight and height are present
   const bmi =
