@@ -82,6 +82,7 @@ export function GlobalNavbar() {
     { href: '/normal-dpi-photo', label: 'Normal DPI' },
     { href: '/barcode-pick', label: 'Barcode Pick' },
     { href: '/fitness-glass', label: 'Fitness Glass' },
+    { href: '/google-fit', label: 'Google Fit Sync' },
     { href: '/fitness-glass/winter-arc-2026', label: 'Winter Arc 2026' },
     { href: '/tip', label: monetizationMode === 1 ? 'Plans' : 'Tip & Coffee' },
   ];

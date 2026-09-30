@@ -3,7 +3,8 @@ import GoogleProvider from 'next-auth/providers/google';
 import TwitterProvider from 'next-auth/providers/twitter';
 import InstagramProvider from 'next-auth/providers/instagram';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import { findUserByEmail, createUser, verifyUserPassword, UserProfile } from './db-users';
+import { findUserByEmail, createUser, verifyUserPassword, saveUserGoogleFitTokens } from './db-users';
+import { GOOGLE_FIT_SCOPES } from './google-fit/types';
 
 export const authOptions: NextAuthOptions = {
   session: {
@@ -12,11 +13,19 @@ export const authOptions: NextAuthOptions = {
   },
   secret: process.env.NEXTAUTH_SECRET || 'Nedject-super-secret-nextauth-key-2026',
   providers: [
-    // 1. Google OAuth Provider
+    // 1. Google OAuth Provider with Google Fit Scopes & Offline Refresh
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID || 'demo-google-client-id',
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || 'demo-google-client-secret',
       allowDangerousEmailAccountLinking: true,
+      authorization: {
+        params: {
+          scope: GOOGLE_FIT_SCOPES.join(' '),
+          access_type: 'offline',
+          prompt: 'consent',
+          include_granted_scopes: 'true',
+        },
+      },
     }),
 
     // 2. X (Twitter) OAuth Provider
@@ -81,13 +90,29 @@ export const authOptions: NextAuthOptions = {
             image: user.image || undefined,
           });
         }
+
+        // If user logged in via Google OAuth, persist their Google Fit tokens to their user record
+        if (account?.provider === 'google' && account.access_token) {
+          await saveUserGoogleFitTokens(user.email, {
+            accessToken: account.access_token,
+            refreshToken: account.refresh_token,
+            expiresAt: account.expires_at ? account.expires_at * 1000 : Date.now() + 3600 * 1000,
+            scope: account.scope,
+          });
+        }
       } catch (err) {
         console.warn('Error in NextAuth signIn callback:', err);
       }
       return true;
     },
 
-    async jwt({ token, user, trigger, session }) {
+    async jwt({ token, user, account, trigger, session }) {
+      // Capture Google OAuth tokens on initial login
+      if (account?.provider === 'google') {
+        (token as any).googleAccessToken = account.access_token;
+        (token as any).hasGoogleFit = true;
+      }
+
       // If user just logged in
       if (user) {
         token.id = user.id;
@@ -114,6 +139,9 @@ export const authOptions: NextAuthOptions = {
           token.occupation = profile.occupation || '';
           token.plan = profile.plan || 'free';
           token.generationsLimit = profile.generationsLimit || 10;
+          if (profile.googleFitTokens?.accessToken) {
+            (token as any).hasGoogleFit = true;
+          }
         }
       }
 
@@ -127,6 +155,7 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).occupation = (token.occupation as string) || '';
         (session.user as any).plan = (token.plan as string) || 'free';
         (session.user as any).generationsLimit = (token.generationsLimit as number) || 10;
+        (session.user as any).hasGoogleFit = Boolean((token as any).hasGoogleFit);
       }
       return session;
     },

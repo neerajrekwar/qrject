@@ -1,6 +1,14 @@
 import { getDb } from './mongodb';
 import bcrypt from 'bcryptjs';
 
+export interface GoogleFitUserTokens {
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt: number;
+  scope?: string;
+  updatedAt: string;
+}
+
 export interface UserProfile {
   _id?: string;
   name: string;
@@ -14,6 +22,7 @@ export interface UserProfile {
   plan: 'free' | 'pro';
   generationsLimit: number;
   generationsUsed: number;
+  googleFitTokens?: GoogleFitUserTokens;
   createdAt: string;
   updatedAt: string;
 }
@@ -149,4 +158,69 @@ export async function verifyUserPassword(email: string, plainPassword: string): 
   if (!isValid) return null;
 
   return user;
+}
+
+export async function saveUserGoogleFitTokens(
+  email: string,
+  tokens: { accessToken: string; refreshToken?: string; expiresAt: number; scope?: string }
+): Promise<void> {
+  const normalizedEmail = email.toLowerCase().trim();
+  const db = await getDb();
+  const now = new Date().toISOString();
+
+  const fitTokens: GoogleFitUserTokens = {
+    accessToken: tokens.accessToken,
+    refreshToken: tokens.refreshToken,
+    expiresAt: tokens.expiresAt,
+    scope: tokens.scope,
+    updatedAt: now,
+  };
+
+  if (db) {
+    try {
+      await db.collection('users').updateOne(
+        { email: normalizedEmail },
+        { $set: { googleFitTokens: fitTokens, updatedAt: now } }
+      );
+    } catch (e) {
+      console.warn('Failed to save Google Fit tokens to MongoDB, updating memory fallback:', e);
+    }
+  }
+
+  const existing = memoryUsers.get(normalizedEmail);
+  if (existing) {
+    existing.googleFitTokens = fitTokens;
+    existing.updatedAt = now;
+    memoryUsers.set(normalizedEmail, existing);
+  }
+}
+
+export async function getUserGoogleFitTokens(email: string): Promise<GoogleFitUserTokens | null> {
+  const normalizedEmail = email.toLowerCase().trim();
+  const user = await findUserByEmail(normalizedEmail);
+  return user?.googleFitTokens || null;
+}
+
+export async function deleteUserGoogleFitTokens(email: string): Promise<void> {
+  const normalizedEmail = email.toLowerCase().trim();
+  const db = await getDb();
+  const now = new Date().toISOString();
+
+  if (db) {
+    try {
+      await db.collection('users').updateOne(
+        { email: normalizedEmail },
+        { $unset: { googleFitTokens: '' }, $set: { updatedAt: now } }
+      );
+    } catch (e) {
+      console.warn('Failed to delete Google Fit tokens from MongoDB:', e);
+    }
+  }
+
+  const existing = memoryUsers.get(normalizedEmail);
+  if (existing) {
+    delete existing.googleFitTokens;
+    existing.updatedAt = now;
+    memoryUsers.set(normalizedEmail, existing);
+  }
 }
