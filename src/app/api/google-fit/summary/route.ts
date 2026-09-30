@@ -62,11 +62,21 @@ export async function GET(request: NextRequest) {
     const startTimeMillis = todayMidnight.getTime() - (days - 1) * 24 * 60 * 60 * 1000;
     const endTimeMillis = Date.now();
 
+    const hasActivityScope = Boolean(
+      tokens.scope?.includes('fitness.activity.read') || tokens.scope?.includes('fitness.activity.write')
+    );
+    const hasBodyScope = Boolean(
+      tokens.scope?.includes('fitness.body.read') || tokens.scope?.includes('fitness.body.write')
+    );
+
     let summaries: DailySummaryMetric[] = [];
+    let diagnosticsData: any = null;
     let isSimulated = false;
 
     try {
-      summaries = await fetchAggregatedDailySummaries(tokens.access_token, startTimeMillis, endTimeMillis);
+      const result = await fetchAggregatedDailySummaries(tokens.access_token, startTimeMillis, endTimeMillis);
+      summaries = result.summaries;
+      diagnosticsData = result.diagnostics;
       if (summaries.length === 0) {
         summaries = getCleanInitialSummariesForUser();
       }
@@ -79,12 +89,24 @@ export async function GET(request: NextRequest) {
     const totalSteps = summaries.reduce((acc, s) => acc + s.steps, 0);
     const avgSteps = Math.round(totalSteps / Math.max(1, summaries.length));
 
+    console.log('[Google Fit Summary]', {
+      userEmail,
+      hasActivityScope,
+      hasBodyScope,
+      totalSteps,
+      diagnostics: diagnosticsData,
+    });
+
     return NextResponse.json({
       success: true,
       isAuthenticated: true,
       isSimulated,
       userEmail,
       userName,
+      hasActivityScope,
+      hasBodyScope,
+      grantedScope: tokens.scope,
+      diagnostics: diagnosticsData,
       summaries,
       latest,
       stats: {

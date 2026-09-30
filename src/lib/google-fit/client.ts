@@ -314,17 +314,21 @@ export async function fetchLatestBodyMetrics(accessToken: string): Promise<{
   weightKg: number | null;
   heightMeters: number | null;
   bloodPressure: DailySummaryMetric['bloodPressure'] | null;
+  dataSourcesCount?: number;
 }> {
   let weightKg: number | null = null;
   let heightMeters: number | null = null;
   let bloodPressure: DailySummaryMetric['bloodPressure'] = null;
 
   const nowNanos = millisToNanosStr(Date.now());
-  const maxLookbackNanos = millisToNanosStr(Date.now() - 365 * 24 * 60 * 60 * 1000); // 1 year lookback
-
-  const fetchDatasetPoints = async (dataSourceId: string) => {
+  // Use start 0 (epoch 0) so historical profile entries (like height set years ago) are retrieved
+  const fetchDatasetPoints = async (
+    dataSourceId: string,
+    startNanos: string = '0',
+    endNanos: string = nowNanos
+  ) => {
     try {
-      const url = `${GOOGLE_FIT_BASE_URL}/dataSources/${encodeURIComponent(dataSourceId)}/datasets/${maxLookbackNanos}-${nowNanos}`;
+      const url = `${GOOGLE_FIT_BASE_URL}/dataSources/${encodeURIComponent(dataSourceId)}/datasets/${startNanos}-${endNanos}`;
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
@@ -364,6 +368,7 @@ export async function fetchLatestBodyMetrics(accessToken: string): Promise<{
   }
 
   // 2. If weight, height, or blood pressure not found, discover from user's active data sources
+  let discoveredCount = 0;
   if (weightKg === null || heightMeters === null || bloodPressure === null) {
     try {
       const dsRes = await fetch(`${GOOGLE_FIT_BASE_URL}/dataSources`, {
@@ -373,6 +378,7 @@ export async function fetchLatestBodyMetrics(accessToken: string): Promise<{
       if (dsRes.ok) {
         const dsData = await dsRes.json();
         const sources: Array<{ dataStreamId: string; dataType?: { name: string } }> = dsData.dataSource || [];
+        discoveredCount = sources.length;
 
         for (const src of sources) {
           if (!src.dataStreamId) continue;
@@ -430,23 +436,36 @@ export async function fetchLatestBodyMetrics(accessToken: string): Promise<{
     }
   }
 
-  return { weightKg, heightMeters, bloodPressure };
+  return { weightKg, heightMeters, bloodPressure, dataSourcesCount: discoveredCount };
+}
+
+export interface FetchSummariesResult {
+  summaries: DailySummaryMetric[];
+  diagnostics: {
+    stepsAggregateStatus?: number;
+    stepsAggregateError?: string;
+    totalStepsFetched: number;
+    dataSourcesCount: number;
+    latestBody: {
+      weightKg: number | null;
+      heightMeters: number | null;
+      bloodPressure: DailySummaryMetric['bloodPressure'] | null;
+    };
+  };
 }
 
 /**
  * Fetches aggregated daily summaries across Steps, Active Minutes, and Weight
  * bucketed by 1 calendar day (86,400,000 milliseconds).
- * Employs clean, isolated queries so that optional or unsupported metric types
- * never prevent step count from being returned.
+ * Employs clean, isolated queries and automatic direct stream fallback so that
+ * user data from the Google Fit app is reliably extracted.
  */
 export async function fetchAggregatedDailySummaries(
   accessToken: string,
   startTimeMillis: number,
   endTimeMillis: number
-): Promise<DailySummaryMetric[]> {
+): Promise<FetchSummariesResult> {
   // 1. Primary: Step Count Aggregation (standard Google Fit aggregate data type)
-  // IMPORTANT: Do NOT specify dataSourceId alongside dataTypeName; Google Fit API
-  // automatically aggregates across all devices, Google Fit app, watches, and manual steps.
   const stepsPayload = {
     aggregateBy: [
       {
@@ -459,6 +478,9 @@ export async function fetchAggregatedDailySummaries(
   };
 
   let stepsBuckets: any[] = [];
+  let stepsAggregateStatus: number | undefined;
+  let stepsAggregateError: string | undefined;
+
   try {
     const stepsRes = await fetch(`${GOOGLE_FIT_BASE_URL}/dataset:aggregate`, {
       method: 'POST',
@@ -469,26 +491,108 @@ export async function fetchAggregatedDailySummaries(
       body: JSON.stringify(stepsPayload),
     });
 
+    stepsAggregateStatus = stepsRes.status;
     if (stepsRes.ok) {
       const data = await stepsRes.json();
       stepsBuckets = data.bucket || [];
     } else {
-      const err = await stepsRes.text();
-      console.warn(`Google Fit steps aggregate warning (${stepsRes.status}):`, err);
+      stepsAggregateError = await stepsRes.text();
+      console.warn(`Google Fit steps aggregate warning (${stepsRes.status}):`, stepsAggregateError);
     }
-  } catch (err) {
+  } catch (err: any) {
+    stepsAggregateError = err.message;
     console.error('Failed to fetch steps aggregate:', err);
   }
 
-  // 2. Secondary: Active Minutes Aggregation (gracefully isolated)
-  let activeMinutesBuckets: any[] = [];
+  // 2. Map returned step buckets by ISO date string (YYYY-MM-DD)
+  const stepsByDate = new Map<string, number>();
+  for (const bucket of stepsBuckets) {
+    const bucketStartMs = Number(bucket.startTimeMillis);
+    const dateStr = new Date(bucketStartMs).toISOString().split('T')[0];
+    let bSteps = 0;
+    for (const ds of bucket.dataset || []) {
+      for (const pt of ds.point || []) {
+        for (const val of pt.value || []) {
+          if (typeof val.intVal === 'number') {
+            bSteps += val.intVal;
+          } else if (typeof val.fpVal === 'number') {
+            bSteps += Math.round(val.fpVal);
+          }
+        }
+      }
+    }
+    stepsByDate.set(dateStr, (stepsByDate.get(dateStr) || 0) + bSteps);
+  }
+
+  // 3. Direct Step Data Source Fallback:
+  // If dataset:aggregate returned 0 total steps, directly query the user's data sources
+  let totalStepsFromAggregate = 0;
+  for (const val of stepsByDate.values()) {
+    totalStepsFromAggregate += val;
+  }
+
+  if (totalStepsFromAggregate === 0) {
+    try {
+      const startNs = millisToNanosStr(startTimeMillis);
+      const endNs = millisToNanosStr(endTimeMillis);
+
+      const fetchDirect = async (dataSourceId: string) => {
+        try {
+          const res = await fetch(`${GOOGLE_FIT_BASE_URL}/dataSources/${encodeURIComponent(dataSourceId)}/datasets/${startNs}-${endNs}`, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+          if (res.ok) {
+            const d = await res.json();
+            return d.point || [];
+          }
+        } catch {
+          // ignore
+        }
+        return [];
+      };
+
+      // A. Try standard merged step deltas directly
+      const mergePts = await fetchDirect('derived:com.google.step_count.delta:com.google.android.gms:merge_step_deltas');
+      for (const pt of mergePts) {
+        const ptMs = nanosStrToMillis(pt.startTimeNanos);
+        const ptDate = new Date(ptMs).toISOString().split('T')[0];
+        const count = pt.value?.[0]?.intVal || (pt.value?.[0]?.fpVal ? Math.round(pt.value[0].fpVal) : 0);
+        stepsByDate.set(ptDate, (stepsByDate.get(ptDate) || 0) + count);
+      }
+
+      // B. If still 0, search all dataSources for step_count
+      let totalDirectSteps = 0;
+      for (const s of stepsByDate.values()) totalDirectSteps += s;
+
+      if (totalDirectSteps === 0) {
+        const dsRes = await fetch(`${GOOGLE_FIT_BASE_URL}/dataSources`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (dsRes.ok) {
+          const dsData = await dsRes.json();
+          for (const src of dsData.dataSource || []) {
+            if (src.dataStreamId && src.dataType?.name === 'com.google.step_count.delta') {
+              const pts = await fetchDirect(src.dataStreamId);
+              for (const pt of pts) {
+                const ptMs = nanosStrToMillis(pt.startTimeNanos);
+                const ptDate = new Date(ptMs).toISOString().split('T')[0];
+                const count = pt.value?.[0]?.intVal || (pt.value?.[0]?.fpVal ? Math.round(pt.value[0].fpVal) : 0);
+                stepsByDate.set(ptDate, (stepsByDate.get(ptDate) || 0) + count);
+              }
+            }
+          }
+        }
+      }
+    } catch (directErr) {
+      console.warn('Direct step data source fallback note:', directErr);
+    }
+  }
+
+  // 4. Secondary: Active Minutes Aggregation (gracefully isolated)
+  const activeByDate = new Map<string, number>();
   try {
     const activePayload = {
-      aggregateBy: [
-        {
-          dataTypeName: 'com.google.active_minutes',
-        },
-      ],
+      aggregateBy: [{ dataTypeName: 'com.google.active_minutes' }],
       bucketByTime: { durationMillis: 86400000 },
       startTimeMillis,
       endTimeMillis,
@@ -505,21 +609,29 @@ export async function fetchAggregatedDailySummaries(
 
     if (activeRes.ok) {
       const aData = await activeRes.json();
-      activeMinutesBuckets = aData.bucket || [];
+      for (const bucket of aData.bucket || []) {
+        const bucketStartMs = Number(bucket.startTimeMillis);
+        const dateStr = new Date(bucketStartMs).toISOString().split('T')[0];
+        let bMins = 0;
+        for (const ds of bucket.dataset || []) {
+          for (const pt of ds.point || []) {
+            for (const val of pt.value || []) {
+              if (typeof val.intVal === 'number') bMins += val.intVal;
+            }
+          }
+        }
+        activeByDate.set(dateStr, (activeByDate.get(dateStr) || 0) + bMins);
+      }
     }
   } catch {
     // Graceful skip
   }
 
-  // 3. Secondary: Daily Weight Summary Aggregation (gracefully isolated)
-  let weightBuckets: any[] = [];
+  // 5. Secondary: Daily Weight Summary Aggregation (gracefully isolated)
+  const weightByDate = new Map<string, number>();
   try {
     const weightPayload = {
-      aggregateBy: [
-        {
-          dataTypeName: 'com.google.weight.summary',
-        },
-      ],
+      aggregateBy: [{ dataTypeName: 'com.google.weight.summary' }],
       bucketByTime: { durationMillis: 86400000 },
       startTimeMillis,
       endTimeMillis,
@@ -536,13 +648,23 @@ export async function fetchAggregatedDailySummaries(
 
     if (weightRes.ok) {
       const wData = await weightRes.json();
-      weightBuckets = wData.bucket || [];
+      for (const bucket of wData.bucket || []) {
+        const bucketStartMs = Number(bucket.startTimeMillis);
+        const dateStr = new Date(bucketStartMs).toISOString().split('T')[0];
+        for (const ds of bucket.dataset || []) {
+          for (const pt of ds.point || []) {
+            if (typeof pt.value?.[0]?.fpVal === 'number') {
+              weightByDate.set(dateStr, Number(pt.value[0].fpVal.toFixed(1)));
+            }
+          }
+        }
+      }
     }
   } catch {
     // Graceful skip
   }
 
-  // 4. Retrieve latest user body metrics (height, weight, BP) from Google Fit app profile/streams
+  // 6. Retrieve latest user body metrics (height, weight, BP) from Google Fit app profile/streams
   const latestBody = await fetchLatestBodyMetrics(accessToken);
 
   // Calculate day-by-day buckets
@@ -554,59 +676,21 @@ export async function fetchAggregatedDailySummaries(
   );
 
   const summaries: DailySummaryMetric[] = [];
+  let totalStepsFetched = 0;
 
   for (let i = 0; i < numBuckets; i++) {
     const bStart = startTimeMillis + i * bucketDuration;
     const dateStr = new Date(bStart).toISOString().split('T')[0];
 
-    // Extract steps for this bucket
-    let steps = 0;
-    const sBucket = stepsBuckets[i];
-    if (sBucket?.dataset) {
-      for (const ds of sBucket.dataset) {
-        for (const pt of ds.point || []) {
-          for (const val of pt.value || []) {
-            if (typeof val.intVal === 'number') {
-              steps += val.intVal;
-            }
-          }
-        }
-      }
-    }
+    const steps = stepsByDate.get(dateStr) || 0;
+    totalStepsFetched += steps;
 
-    // Extract active minutes for this bucket
-    let activeMinutes = 0;
-    const aBucket = activeMinutesBuckets[i];
-    if (aBucket?.dataset) {
-      for (const ds of aBucket.dataset) {
-        for (const pt of ds.point || []) {
-          for (const val of pt.value || []) {
-            if (typeof val.intVal === 'number') {
-              activeMinutes += val.intVal;
-            }
-          }
-        }
-      }
-    }
-    // If active minutes wasn't tracked by wearable, approximate active minutes from steps (~120 steps/min)
+    let activeMinutes = activeByDate.get(dateStr) || 0;
     if (activeMinutes === 0 && steps > 1000) {
       activeMinutes = Math.round(steps / 120);
     }
 
-    // Extract daily weight if logged in this bucket
-    let dayWeight: number | null = null;
-    const wBucket = weightBuckets[i];
-    if (wBucket?.dataset) {
-      for (const ds of wBucket.dataset) {
-        for (const pt of ds.point || []) {
-          if (typeof pt.value?.[0]?.fpVal === 'number') {
-            dayWeight = Number(pt.value[0].fpVal.toFixed(1));
-          }
-        }
-      }
-    }
-
-    // Fall back to user's latest recorded profile weight and height from Google Fit
+    const dayWeight = weightByDate.get(dateStr) || null;
     const effectiveWeight = dayWeight || latestBody.weightKg;
     const effectiveHeight = latestBody.heightMeters;
     const bmi =
@@ -625,7 +709,20 @@ export async function fetchAggregatedDailySummaries(
     });
   }
 
-  return summaries;
+  return {
+    summaries,
+    diagnostics: {
+      stepsAggregateStatus,
+      stepsAggregateError,
+      totalStepsFetched,
+      dataSourcesCount: latestBody.dataSourcesCount || 0,
+      latestBody: {
+        weightKg: latestBody.weightKg,
+        heightMeters: latestBody.heightMeters,
+        bloodPressure: latestBody.bloodPressure,
+      },
+    },
+  };
 }
 
 // ============================================================================

@@ -49,6 +49,7 @@ export const GoogleFitDashboard: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [errorNotice, setErrorNotice] = useState<string | null>(null);
+  const [missingActivityScope, setMissingActivityScope] = useState<boolean>(false);
 
   const [summaries, setSummaries] = useState<DailySummaryMetric[]>([]);
   const [latestMetric, setLatestMetric] = useState<DailySummaryMetric | null>(null);
@@ -100,6 +101,11 @@ export const GoogleFitDashboard: React.FC = () => {
         setIsDemoMode(Boolean(sumData.isSimulated));
         if (sumData.userEmail) setConnectedEmail(sumData.userEmail);
         if (sumData.stats?.avgSteps !== undefined) setAvgSteps(sumData.stats.avgSteps);
+        if (sumData.hasActivityScope === false) {
+          setMissingActivityScope(true);
+        } else {
+          setMissingActivityScope(false);
+        }
       }
 
       if (sessRes.ok) {
@@ -402,19 +408,46 @@ export const GoogleFitDashboard: React.FC = () => {
         </div>
       )}
 
+      {/* Notice if signed in but missing activity read scope */}
+      {isConnected && missingActivityScope && (
+        <div className="bg-rose-50 border-4 border-rose-600 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-[4px_4px_0px_#000000] text-xs">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-black text-rose-900 uppercase">
+                Google Fit Physical Activity Scope Not Granted
+              </span>
+              <p className="text-zinc-700 font-sans mt-0.5">
+                Your account ({userDisplayEmail}) is linked, but Google Fit step counts were not permitted because the <strong>&quot;See your Google Fit physical activity data&quot;</strong> checkbox was unchecked during sign-in. Click below and check all permission boxes to display your real steps!
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleAuthorizeGoogleFit}
+            className="shrink-0 px-4 py-2 border-2 border-black bg-rose-600 text-white hover:bg-black hover:text-[#ccff00] font-black text-xs uppercase shadow-[2px_2px_0px_#000000] transition-colors flex items-center gap-1.5"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            <span>Grant Activity Permission</span>
+          </button>
+        </div>
+      )}
+
       {/* Notice if new account with zero data yet */}
-      {isConnected && currentSteps === 0 && !currentWeight && (
+      {isConnected && !missingActivityScope && currentSteps === 0 && !currentWeight && (
         <div className="bg-[#ccff00]/20 border-2 border-black p-4 flex items-start gap-3 shadow-[3px_3px_0px_#000000] text-xs">
           <Info className="w-5 h-5 text-black shrink-0 mt-0.5" />
-          <div>
+          <div className="space-y-1.5">
             <span className="font-black text-black uppercase">
-              Fresh Account Telemetry: No Data Synced Yet for {userDisplayEmail}
+              Connected to {userDisplayEmail}: Awaiting Cloud Data Sync
             </span>
-            <p className="text-zinc-700 font-sans mt-0.5">
-              Your Google Account is securely connected. As you walk with your Android device or pair your smart tracker,
-              metrics will automatically appear here. You can also click <strong>&quot;Log Metric / Session&quot;</strong> above
-              to write manual weight, height, or blood pressure readings directly to your Google Fit cloud dataset!
+            <p className="text-zinc-700 font-sans">
+              Your Google Account is securely connected. If you have steps in your Google Fit mobile app:
             </p>
+            <ol className="list-decimal list-inside text-zinc-800 font-sans space-y-1 pl-1 font-medium">
+              <li>Open the <strong>Google Fit app</strong> on your phone and pull down on the Home screen to sync with Google servers.</li>
+              <li>Verify in Google Fit app profile that you are signed into <strong>{userDisplayEmail}</strong>.</li>
+              <li>Click <strong>&quot;Sync Now&quot;</strong> above to re-fetch your synced telemetry.</li>
+            </ol>
           </div>
         </div>
       )}
